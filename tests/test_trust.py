@@ -12,10 +12,11 @@ from app.services.trust_service import (
 )
 
 
-def test_bot_heuristic_flags_generic_bio():
+def test_bot_heuristic_generic_bio_stays_moderate():
     result = _fallback_bot_risk("Love to laugh! Partner in crime. Here for a good time.")
-    assert result["bot_risk_score"] >= 40
-    assert any("Generic" in s for s in result["signals"])
+    assert result["bot_risk_score"] <= 45
+    assert result["bot_risk_score"] >= 20
+    assert any("Common" in s or "Generic" in s for s in result["signals"])
 
 
 def test_trust_badges():
@@ -46,7 +47,7 @@ def test_high_catfish_lowers_percolation():
 
 
 if __name__ == "__main__":
-    test_bot_heuristic_flags_generic_bio()
+    test_bot_heuristic_generic_bio_stays_moderate()
     test_trust_badges()
     test_high_catfish_lowers_percolation()
     print("All trust tests passed.")

@@ -19,8 +19,10 @@ from app.services import (
     referral_service,
 )
 from app.utils.profile_labels import format_user_badge, match_profile_label
+from app.utils.profile_tokens import profile_tokens_spent
 from app.utils.templates import render
 from app.utils.trust_display import trust_card_context
+from app.services.model_router import route
 
 router = APIRouter(tags=["dashboard"])
 
@@ -39,7 +41,8 @@ def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDa
         db.query(Ranking)
         .join(Profile, Ranking.profile_id == Profile.id)
         .options(
-            joinedload(Ranking.profile).joinedload(Profile.social_enrichments)
+            joinedload(Ranking.profile).joinedload(Profile.social_enrichments),
+            joinedload(Ranking.profile).joinedload(Profile.evidence),
         )
         .filter(*profile_filter)
         .order_by(Ranking.percolation_priority.desc())
@@ -78,8 +81,16 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
 
     data = _percolated_data(db, account_id=account_id)
     referrals = referral_service.get_referral_stats(db, account_id)
+    agent_est = (
+        route("profile_agent").token_cost
+        + route("rank_refresh").token_cost
+    )
     cards = [
-        {"ranking": r, "trust": trust_card_context(r.profile, r)}
+        {
+            "ranking": r,
+            "trust": trust_card_context(r.profile, r),
+            "tokens_spent": profile_tokens_spent(r.profile, db),
+        }
         for r in data.shortlist
     ]
     return render(
@@ -104,6 +115,8 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "token_balance": credit_service.get_balance(db, account_id),
             "billing_enabled": credit_service.billing_enabled(),
             "referrals": referrals,
+            "agent_est_min": agent_est,
+            "agent_image_cost": route("profile_agent_image").token_cost,
             "authed": is_authenticated(request),
             "active": "dashboard",
         },

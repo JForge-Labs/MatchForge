@@ -18,6 +18,7 @@ from app.core.db import get_db
 from app.models.profile import Profile, Ranking, SocialEnrichment
 from app.schemas.profile import EnrichRequest, EnrichResult, FeedbackRequest, ShareOut
 from app.services import (
+    agent_service,
     credit_service,
     evidence_service,
     onboarding_service,
@@ -190,6 +191,54 @@ async def enrich_profiles(
         )
     db.commit()
     return results
+
+
+@router.post("/{profile_id}/agent")
+async def profile_agent(
+    request: Request,
+    profile_id: int,
+    background_tasks: BackgroundTasks,
+    prompt: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    """Unified agent enrich: free-text prompt + optional images (profiles, chats, platforms)."""
+    require_auth(request)
+    account_id = get_account_id(request)
+    profile = _owned_profile(db, profile_id, account_id)
+
+    images: list[bytes] = []
+    for upload in files or []:
+        if not upload:
+            continue
+        data = await upload.read()
+        if data:
+            images.append(data)
+
+    if not prompt.strip() and not images:
+        raise HTTPException(400, "Enter a prompt or attach at least one image.")
+
+    est = agent_service.estimate_agent_cost(prompt, len(images))
+    credit_service.ensure_can_afford(db, account_id, est, activity="profile_agent")
+
+    result = await agent_service.run_agent_prompt(
+        db, profile, account_id, prompt.strip(), images
+    )
+    for activity in result.get("charge_activities", []):
+        credit_service.charge_tokens(
+            db, account_id, activity, metadata={"profile_id": profile_id}
+        )
+
+    if result.get("request_deep_vet"):
+        background_tasks.add_task(
+            _run_enrichment,
+            profile_id,
+            ["facebook", "instagram", "linkedin", "x"],
+        )
+
+    db.commit()
+    result["balance"] = credit_service.get_balance(db, account_id)
+    return result
 
 
 @router.post("/{profile_id}/evidence/note")

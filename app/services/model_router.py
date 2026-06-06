@@ -33,6 +33,18 @@ ACTIVITIES: dict[str, LlmRoute] = {
         3,
         "Free-text note structured and merged into profile",
     ),
+    "profile_agent": LlmRoute(
+        "profile_agent",
+        settings.xai_text_fast,
+        5,
+        "Agent prompt interpretation and profile merge",
+    ),
+    "profile_agent_image": LlmRoute(
+        "profile_agent_image",
+        settings.xai_vision_model,
+        10,
+        "Additional profile screenshot via agent (multi-platform enrich)",
+    ),
     "rank_refresh": LlmRoute(
         "rank_refresh",
         settings.xai_text_fast,

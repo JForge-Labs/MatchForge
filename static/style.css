@@ -196,6 +196,67 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; }
   font-size: 0.9rem;
 }
 
+.token-spent {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.agent-panel {
+  margin: 0.75rem 0;
+  padding: 0.85rem;
+  background: rgba(124, 108, 240, 0.06);
+  border: 1px solid rgba(124, 108, 240, 0.2);
+  border-radius: var(--radius);
+}
+
+.agent-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-hover);
+  margin-bottom: 0.4rem;
+}
+
+.agent-prompt {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 3rem;
+}
+
+.agent-prompt:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.agent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.agent-files {
+  font-size: 0.8rem;
+  color: var(--muted);
+  max-width: 100%;
+}
+
+.agent-cost-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  flex: 1;
+}
+
 .card-meta {
   display: flex;
   gap: 0.75rem;

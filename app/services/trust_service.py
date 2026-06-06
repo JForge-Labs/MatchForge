@@ -9,7 +9,7 @@ from app.services import llm_service, vetting_service, vision_service
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-BOT_DETECTION_PROMPT = """Analyze this dating profile text for bot, fake, or low-effort signals.
+BOT_DETECTION_PROMPT = """Analyze this dating profile text for bot, fake, or spam signals.
 
 PROFILE DATA:
 {bio_and_metadata}
@@ -23,8 +23,12 @@ Return ONLY valid JSON:
   "explanation": "1-2 sentences on bot/fake assessment"
 }}
 
-Look for: generic templated bios, overly perfect wording, scam patterns, minimal effort,
-copy-paste vibes, inconsistent details, only links/contact info, too-good-to-be-true claims."""
+Calibration — important:
+- Default toward LOW scores (15-30) for profiles that look like normal humans with any personal detail.
+- Only score 50+ when you see MULTIPLE strong bot/spam indicators together.
+- Generic dating clichés alone (e.g. "love to laugh") are weak signals — max +10, not grounds for high risk.
+- Short bios are common on real profiles — do not penalize heavily unless empty or link-only.
+- Reserve 70+ for clear scam patterns, link funnels, crypto pitches, or obviously automated spam."""
 
 CATFISH_SYNTHESIS_PROMPT = """Synthesize catfish/authenticity risk from photo analyses, bio, and social signals.
 
@@ -84,25 +88,57 @@ def _fallback_photo_trust() -> dict:
 
 
 def _fallback_bot_risk(bio: str | None) -> dict:
-    risk = 20
+    risk = 15
     signals = []
-    if not bio or len(bio.strip()) < 15:
-        risk += 25
-        signals.append("Very short or empty bio")
+    if not bio or len(bio.strip()) < 8:
+        risk += 12
+        signals.append("Empty or very short bio")
     generic = ["love to laugh", "partner in crime", "ask me anything", "here for a good time"]
     if bio:
         lower = bio.lower()
         hits = [g for g in generic if g in lower]
         if hits:
-            risk += 15 * len(hits)
-            signals.append(f"Generic phrases: {', '.join(hits)}")
+            risk += 6 * min(len(hits), 2)
+            signals.append(f"Common phrases: {', '.join(hits)}")
+    risk = min(45, risk)
     return {
-        "bot_risk_score": min(100, risk),
+        "bot_risk_score": risk,
         "signals": signals,
-        "bio_quality": "low" if risk > 50 else "medium",
-        "template_likelihood": min(100, risk),
+        "bio_quality": "low" if risk > 40 else "medium",
+        "template_likelihood": min(50, risk),
         "explanation": "Heuristic bot check — LLM unavailable.",
     }
+
+
+def _calibrate_bot_risk(result: dict, bio: str | None) -> dict:
+    """Dampen false positives on likely-real profiles."""
+    score = float(result.get("bot_risk_score") or 20)
+    signals = list(result.get("signals") or [])
+    text = (bio or "").strip()
+
+    if len(text) >= 40:
+        score = min(score, max(20, score * 0.72))
+    elif len(text) >= 20:
+        score = min(score, max(18, score * 0.8))
+
+    weak_only = signals and all(
+        any(w in s.lower() for w in ("generic", "common", "short", "minimal", "clich"))
+        for s in signals
+    )
+    if weak_only and score > 35:
+        score = 35
+
+    if score < 25 and signals:
+        signals = signals[:1]
+
+    result = dict(result)
+    result["bot_risk_score"] = round(max(0, min(100, score)), 1)
+    result["signals"] = signals
+    if result["bot_risk_score"] < 40:
+        result["explanation"] = (
+            result.get("explanation") or "No strong bot indicators."
+        ).replace("Bot risk:", "").strip() or "Looks like a normal profile."
+    return result
 
 
 async def analyze_profile_trust(
@@ -140,7 +176,7 @@ async def analyze_profile_trust(
     explanations = []
     if catfish.get("trust_explanation"):
         explanations.append(catfish["trust_explanation"])
-    if bot.get("explanation") and bot_risk >= 40:
+    if bot.get("explanation") and bot_risk >= 55:
         explanations.append(f"Bot risk: {bot['explanation']}")
     for p in photo_analyses:
         if p.get("ai_generated_likelihood", 0) >= 60:
@@ -168,7 +204,8 @@ async def analyze_profile_trust(
         "photo_analyses": photo_analyses,
         "bot_analysis": bot,
         "catfish_analysis": catfish,
-        "risk_factors": catfish.get("risk_factors", []) + bot.get("signals", []),
+        "risk_factors": catfish.get("risk_factors", [])
+        + (bot.get("signals", []) if bot_risk >= 50 else []),
     }
     summary = vetting_service.compute_trust_summary(result)
     result["overall_trust_score"] = summary["overall_trust_score"]
@@ -189,7 +226,7 @@ async def detect_bot_signals(
         result, _usage = await llm_service.generate_json(
             prompt, model=settings.xai_text_fast, timeout=120.0
         )
-        return result
+        return _calibrate_bot_risk(result, bio)
     except Exception as exc:
         logger.warning("Bot detection failed: %s", exc)
         return _fallback_bot_risk(bio)
@@ -302,8 +339,8 @@ def compute_trust_adjusted_scores(
     percolation = adjusted - (catfish * 0.6) - (bot * 0.4)
     if catfish >= 70:
         percolation -= 30
-    if bot >= 60:
-        percolation -= 20
+    if bot >= 65:
+        percolation -= 15
 
     trust_note = trust.get("trust_explanation", "")
     explanation = base_scores.get("explanation", "")
