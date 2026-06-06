@@ -13,6 +13,7 @@ on:
         type: choice
         options:
           - none
+          - stage
           - prod
 
 env:
@@ -33,6 +34,21 @@ jobs:
           docker build -t registry.digitalocean.com/matchforge/web:latest .
           docker push registry.digitalocean.com/matchforge/web:latest
 
+  deploy-stage:
+    needs: build
+    if: >-
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_target == 'stage')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      - name: Deploy staging app
+        run: doctl apps create-deployment "${{ secrets.DO_DEV_APP_ID }}"
+
   deploy-prod:
     needs: build
     if: >-
@@ -47,17 +63,3 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       - name: Deploy prod app
         run: doctl apps create-deployment "${{ secrets.DO_PROD_APP_ID }}"
-
-  # Enable when dev.match-forge.com App Platform app exists:
-  # 1. doctl apps create --spec infrastructure/deploy/matchforge-dev.app.yaml
-  # 2. Add DO_DEV_APP_ID to GitHub repo secrets
-  # deploy-dev:
-  #   needs: build
-  #   if: github.ref == 'refs/heads/main'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v5
-  #     - uses: digitalocean/action-doctl@v2
-  #       with:
-  #         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-  #     - run: doctl apps create-deployment "${{ secrets.DO_DEV_APP_ID }}"
