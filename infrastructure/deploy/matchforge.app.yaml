@@ -1,0 +1,66 @@
+# MatchForge production — DigitalOcean App Platform (tor1)
+# Secrets (SECRET_KEY, AUTH_PASSWORD) are injected at deploy time via render-spec.sh
+# DATABASE_URL must use component vars — never ${db.DATABASE_URL}
+name: matchforge
+region: tor1
+
+services:
+  - name: web
+    github:
+      repo: jfodchuk/MatchForge
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 45
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 5
+    envs:
+      - key: APP_ENV
+        value: production
+        scope: RUN_TIME
+      - key: APP_DOMAIN
+        value: match-forge.com
+        scope: RUN_TIME
+      - key: APP_URL
+        value: https://match-forge.com
+        scope: RUN_TIME
+      - key: PORT
+        value: "8000"
+        scope: RUN_TIME
+      - key: RUN_DB_INIT
+        value: "true"
+        scope: RUN_TIME
+      - key: LOG_LEVEL
+        value: info
+        scope: RUN_TIME
+      - key: DATABASE_URL
+        value: postgresql://${db.USERNAME}:${db.PASSWORD}@${db.HOSTNAME}:${db.PORT}/${db.DATABASE}?sslmode=require
+        scope: RUN_TIME
+        type: SECRET
+      - key: SECRET_KEY
+        value: __SECRET_KEY__
+        scope: RUN_TIME
+        type: SECRET
+      - key: AUTH_PASSWORD
+        value: __AUTH_PASSWORD__
+        scope: RUN_TIME
+        type: SECRET
+
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    production: true
+
+domains:
+  - domain: match-forge.com
+    type: PRIMARY
+  - domain: www.match-forge.com
+    type: ALIAS

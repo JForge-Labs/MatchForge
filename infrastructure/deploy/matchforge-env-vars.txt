@@ -1,0 +1,27 @@
+# MatchForge production env template (DigitalOcean App Platform)
+# Copy values into DO App → Settings → App-Level Environment Variables
+# Generate fresh secrets per environment — never reuse dev/staging values.
+
+# --- App ---
+APP_ENV=production
+APP_DOMAIN=match-forge.com
+APP_URL=https://match-forge.com
+PORT=8000
+LOG_LEVEL=info
+RUN_DB_INIT=true
+
+# --- Auth (generate: openssl rand -hex 32 / openssl rand -base64 24) ---
+SECRET_KEY=CHANGEME
+AUTH_PASSWORD=CHANGEME
+
+# --- Database (DO component form — NOT ${db.DATABASE_URL}) ---
+DATABASE_URL=postgresql://${db.USERNAME}:${db.PASSWORD}@${db.HOSTNAME}:${db.PORT}/${db.DATABASE}?sslmode=require
+
+# --- AI (optional cloud / remote Ollama — App Platform has no local Ollama) ---
+OLLAMA_BASE_URL=
+VISION_MODEL=moondream
+TEXT_MODEL=llama3.2
+
+# --- Flags (prod hardening) ---
+# RUN_DB_INIT=true on first deploy only if schema missing; safe to leave true (idempotent init_db)
+# Do NOT set RUN_DB_RESET or demo seed flags — not implemented; would be dangerous if added later

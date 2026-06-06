@@ -1,121 +1,117 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MatchForge Dashboard</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-  <header class="header">
-    <div class="container">
-      <h1>MatchForge</h1>
-      <p class="tagline">Screenshot-first dating intelligence · local & private</p>
-      {% if user %}
-      <p class="user-badge">{{ user.gender | replace('_', ' ') | title }} · {{ user.intentions | join(', ') }} · <a href="/onboarding">Update profile</a></p>
-      {% endif %}
+{% extends "base.html" %}
+{% block title %}Dashboard — MatchForge{% endblock %}
+
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1>Dashboard</h1>
+    <p class="tagline">Screenshot-first dating intelligence · local &amp; private</p>
+    {% if user %}
+    <p class="user-badge">{{ user.gender | replace('_', ' ') | title }} · {{ user.intentions | join(', ') }}</p>
+    {% endif %}
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="upload-section">
+  <h2>Upload Screenshots</h2>
+  <p>Drag dating profile screenshots here or click to browse. Each image is analyzed locally via Ollama vision.</p>
+  <form id="upload-form" enctype="multipart/form-data">
+    <div id="drop-zone" class="drop-zone">
+      <input type="file" id="file-input" name="files" multiple accept="image/*">
+      <p>Drop screenshots here or <span class="link">browse</span></p>
     </div>
-  </header>
+    <button type="submit" id="upload-btn" class="btn primary">Analyze &amp; Rank</button>
+  </form>
+  <div id="upload-status" class="status hidden"></div>
+</section>
 
-  <main class="container">
-    <section class="upload-section">
-      <h2>Upload Screenshots</h2>
-      <p>Drag dating profile screenshots here or click to browse. Each image is analyzed locally via Ollama vision.</p>
-      <form id="upload-form" enctype="multipart/form-data">
-        <div id="drop-zone" class="drop-zone">
-          <input type="file" id="file-input" name="files" multiple accept="image/*">
-          <p>Drop screenshots here or <span class="link">browse</span></p>
-        </div>
-        <button type="submit" id="upload-btn" class="btn primary">Analyze &amp; Rank</button>
-      </form>
-      <div id="upload-status" class="status hidden"></div>
-    </section>
+<section class="stats">
+  <div class="stat-card">
+    <span class="stat-num">{{ total }}</span>
+    <span class="stat-label">Profiles</span>
+  </div>
+  {% if preference %}
+  <div class="stat-card">
+    <span class="stat-num stat-text">{{ preference.name }}</span>
+    <span class="stat-label">Preference Vector</span>
+  </div>
+  {% endif %}
+</section>
 
-    <section class="stats">
-      <div class="stat-card">
-        <span class="stat-num">{{ total }}</span>
-        <span class="stat-label">Profiles</span>
+<section class="shortlist">
+  <h2>Percolated Shortlist</h2>
+  {% if shortlist %}
+  <div class="cards">
+    {% for ranking in shortlist %}
+    <article class="card" data-ranking-id="{{ ranking.id }}">
+      <div class="card-header">
+        <h3>{{ ranking.profile.name or ranking.profile.username or "Unknown" }}</h3>
+        <span class="score">{{ "%.0f"|format(ranking.overall_score) }}</span>
       </div>
-      {% if preference %}
-      <div class="stat-card">
-        <span class="stat-num">{{ preference.name }}</span>
-        <span class="stat-label">Active Preference Vector</span>
+      <div class="card-meta">
+        {% if ranking.profile.age %}<span>{{ ranking.profile.age }}</span>{% endif %}
+        {% if ranking.profile.location %}<span>{{ ranking.profile.location }}</span>{% endif %}
+        {% if ranking.profile.platform %}<span class="platform">{{ ranking.profile.platform }}</span>{% endif %}
+        <span class="enrich-status">{{ ranking.profile.enrichment_status }}</span>
       </div>
+      <div class="trust-badges">
+        {% set auth = ranking.authenticity_score or ranking.profile.authenticity_score %}
+        {% set catfish = ranking.catfish_risk_score or ranking.profile.catfish_risk_score %}
+        {% set bot = ranking.bot_risk_score or ranking.profile.bot_risk_score %}
+        {% set natural = ranking.naturalness_score or ranking.profile.naturalness_score %}
+        {% if auth is not none %}
+        <span class="badge {% if auth >= 70 %}badge-green{% elif auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+          Authenticity {{ "%.0f"|format(auth) }}%
+        </span>
+        {% endif %}
+        {% if natural is not none %}
+        <span class="badge {% if natural >= 70 %}badge-green{% elif natural >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+          Natural {{ "%.0f"|format(natural) }}%
+        </span>
+        {% endif %}
+        {% if catfish is not none %}
+        <span class="badge {% if catfish < 30 %}badge-green{% elif catfish < 60 %}badge-yellow{% else %}badge-red{% endif %}">
+          Catfish {{ "%.0f"|format(catfish) }}%
+        </span>
+        {% endif %}
+        {% if bot is not none %}
+        <span class="badge {% if bot < 30 %}badge-green{% elif bot < 60 %}badge-yellow{% else %}badge-red{% endif %}">
+          Bot {{ "%.0f"|format(bot) }}%
+        </span>
+        {% endif %}
+      </div>
+      {% if ranking.trust_explanation %}
+      <p class="trust-warning">{{ ranking.trust_explanation }}</p>
       {% endif %}
-    </section>
-
-    <section class="shortlist">
-      <h2>Percolated Shortlist</h2>
-      {% if shortlist %}
-      <div class="cards">
-        {% for ranking in shortlist %}
-        <article class="card" data-ranking-id="{{ ranking.id }}">
-          <div class="card-header">
-            <h3>{{ ranking.profile.name or ranking.profile.username or "Unknown" }}</h3>
-            <span class="score">{{ "%.0f"|format(ranking.overall_score) }}</span>
-          </div>
-          <div class="card-meta">
-            {% if ranking.profile.age %}<span>{{ ranking.profile.age }}</span>{% endif %}
-            {% if ranking.profile.location %}<span>{{ ranking.profile.location }}</span>{% endif %}
-            {% if ranking.profile.platform %}<span class="platform">{{ ranking.profile.platform }}</span>{% endif %}
-            <span class="enrich-status">{{ ranking.profile.enrichment_status }}</span>
-          </div>
-          <div class="trust-badges">
-            {% set auth = ranking.authenticity_score or ranking.profile.authenticity_score %}
-            {% set catfish = ranking.catfish_risk_score or ranking.profile.catfish_risk_score %}
-            {% set bot = ranking.bot_risk_score or ranking.profile.bot_risk_score %}
-            {% set natural = ranking.naturalness_score or ranking.profile.naturalness_score %}
-            {% if auth is not none %}
-            <span class="badge {% if auth >= 70 %}badge-green{% elif auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
-              Authenticity {{ "%.0f"|format(auth) }}%
-            </span>
-            {% endif %}
-            {% if natural is not none %}
-            <span class="badge {% if natural >= 70 %}badge-green{% elif natural >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
-              Natural {{ "%.0f"|format(natural) }}%
-            </span>
-            {% endif %}
-            {% if catfish is not none %}
-            <span class="badge {% if catfish < 30 %}badge-green{% elif catfish < 60 %}badge-yellow{% else %}badge-red{% endif %}">
-              Catfish {{ "%.0f"|format(catfish) }}%
-            </span>
-            {% endif %}
-            {% if bot is not none %}
-            <span class="badge {% if bot < 30 %}badge-green{% elif bot < 60 %}badge-yellow{% else %}badge-red{% endif %}">
-              Bot {{ "%.0f"|format(bot) }}%
-            </span>
-            {% endif %}
-          </div>
-          {% if ranking.trust_explanation %}
-          <p class="trust-warning">{{ ranking.trust_explanation }}</p>
-          {% endif %}
-          {% if ranking.profile.bio %}
-          <p class="bio">{{ ranking.profile.bio[:200] }}{% if ranking.profile.bio|length > 200 %}…{% endif %}</p>
-          {% endif %}
-          {% if ranking.explanation %}
-          <p class="explanation">{{ ranking.explanation }}</p>
-          {% endif %}
-          <div class="scores-row">
-            <span>Compat: {{ "%.0f"|format(ranking.compatibility_score) }}</span>
-            <span>Attraction: {{ "%.0f"|format(ranking.attractiveness_score) }}</span>
-            <span class="red">Red flags: {{ "%.0f"|format(ranking.red_flag_score) }}</span>
-            {% if auth is not none %}<span>Trust: {{ "%.0f"|format(auth) }}%</span>{% endif %}
-          </div>
-          <div class="actions">
-            <button class="btn small" onclick="enrichProfile({{ ranking.profile.id }})">Enrich</button>
-            <button class="btn small like" onclick="feedback({{ ranking.id }}, 'like')">Like</button>
-            <button class="btn small dislike" onclick="feedback({{ ranking.id }}, 'dislike')">Pass</button>
-            <button class="btn small super" onclick="feedback({{ ranking.id }}, 'superlike')">Top</button>
-          </div>
-        </article>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="empty">No profiles yet — upload a screenshot to get started.</p>
+      {% if ranking.profile.bio %}
+      <p class="bio">{{ ranking.profile.bio[:200] }}{% if ranking.profile.bio|length > 200 %}…{% endif %}</p>
       {% endif %}
-    </section>
-  </main>
+      {% if ranking.explanation %}
+      <p class="explanation">{{ ranking.explanation }}</p>
+      {% endif %}
+      <div class="scores-row">
+        <span>Compat: {{ "%.0f"|format(ranking.compatibility_score) }}</span>
+        <span>Attraction: {{ "%.0f"|format(ranking.attractiveness_score) }}</span>
+        <span class="red">Red flags: {{ "%.0f"|format(ranking.red_flag_score) }}</span>
+        {% if auth is not none %}<span>Trust: {{ "%.0f"|format(auth) }}%</span>{% endif %}
+      </div>
+      <div class="actions">
+        <button class="btn small" onclick="enrichProfile({{ ranking.profile.id }})">Enrich</button>
+        <button class="btn small like" onclick="feedback({{ ranking.id }}, 'like')">Like</button>
+        <button class="btn small dislike" onclick="feedback({{ ranking.id }}, 'dislike')">Pass</button>
+        <button class="btn small super" onclick="feedback({{ ranking.id }}, 'superlike')">Top</button>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">No profiles yet — upload a screenshot to get started.</p>
+  {% endif %}
+</section>
+{% endblock %}
 
-  <script src="/static/app.js"></script>
-</body>
-</html>
+{% block scripts %}
+<script src="/static/app.js"></script>
+{% endblock %}
