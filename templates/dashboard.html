@@ -82,7 +82,7 @@
     {% for item in cards %}
     {% set ranking = item.ranking %}
     {% set t = item.trust %}
-    <article class="card card-{{ t.catfish_flag }}" data-ranking-id="{{ ranking.id }}">
+    <article class="card card-{{ t.catfish_flag }}" data-ranking-id="{{ ranking.id }}" data-profile-id="{{ ranking.profile.id }}">
       <div class="card-header">
         <div class="card-title-block">
           <h3>{{ ranking.profile.name or ranking.profile.username or ("Profile #" ~ ranking.profile.id) }}</h3>
@@ -91,11 +91,20 @@
           {% endif %}
           <span class="vet-badge vet-{{ t.catfish_flag }}">{{ t.catfish_label }}</span>
         </div>
-        <div class="card-scores">
-          <span class="trust-score" title="Overall trust score">{{ "%.0f"|format(t.overall_trust) }}</span>
-          <span class="score-label">trust</span>
-          <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
-          <span class="score-label">match</span>
+        <div class="card-header-right">
+          <div class="card-scores">
+            <span class="trust-score" title="Overall trust score">{{ "%.0f"|format(t.overall_trust) }}</span>
+            <span class="score-label">trust</span>
+            <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
+            <span class="score-label">match</span>
+          </div>
+          <button
+            type="button"
+            class="btn-delete"
+            title="Delete this profile workup"
+            aria-label="Delete profile"
+            onclick="deleteProfile({{ ranking.profile.id }})"
+          >×</button>
         </div>
       </div>
 

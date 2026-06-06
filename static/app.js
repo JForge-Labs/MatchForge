@@ -129,6 +129,31 @@ function showStatus(msg, type) {
   uploadStatus.style.whiteSpace = "pre-wrap";
 }
 
+async function deleteProfile(profileId) {
+  const card = document.querySelector(`[data-profile-id="${profileId}"]`);
+  try {
+    const resp = await fetch(`/profiles/${profileId}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Delete failed");
+    if (card) {
+      card.style.opacity = "0";
+      card.style.transform = "scale(0.98)";
+      setTimeout(() => {
+        card.remove();
+        if (!document.querySelector(".cards .card")) {
+          window.location.reload();
+        }
+      }, 200);
+    }
+    showStatus("Profile removed.", "ok");
+  } catch (err) {
+    showStatus(err.message, "error");
+  }
+}
+
 async function submitAgent(profileId) {
   const promptEl = document.getElementById(`agent-prompt-${profileId}`);
   const filesEl = document.getElementById(`agent-files-${profileId}`);
