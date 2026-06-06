@@ -1,24 +1,20 @@
 """Signup, email verification, login, and logout."""
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core.auth import is_authenticated, login_user, logout_user, verify_password
-from app.core.config import get_settings
 from app.core.db import get_db
 from app.services import account_service, email_service
+from app.utils.templates import render
 
 router = APIRouter(tags=["auth"])
-templates = Jinja2Templates(directory="templates")
 
 
 def _auth_context(**extra):
-    settings = get_settings()
     return {
         "authed": False,
         "smtp_configured": email_service.smtp_configured(),
-        "app_env": settings.app_env,
         **extra,
     }
 
@@ -27,7 +23,7 @@ def _auth_context(**extra):
 def signup_page(request: Request, error: str | None = None, ref: str | None = None):
     if is_authenticated(request):
         return RedirectResponse(url="/onboarding", status_code=302)
-    return templates.TemplateResponse(
+    return render(
         request,
         "signup.html",
         _auth_context(error=error, referral_code=ref or ""),
@@ -45,14 +41,14 @@ def signup_submit(
         db, email, referral_code=referral_code or None
     )
     if status == "invalid":
-        return templates.TemplateResponse(
+        return render(
             request,
             "signup.html",
             _auth_context(error="Enter a valid email address."),
             status_code=400,
         )
     if status == "exists":
-        return templates.TemplateResponse(
+        return render(
             request,
             "signup.html",
             _auth_context(
@@ -65,7 +61,7 @@ def signup_submit(
     dev_link = (
         account_service.build_auth_url(dev_token, "signup_verify") if dev_token else None
     )
-    return templates.TemplateResponse(
+    return render(
         request,
         "auth_email_sent.html",
         _auth_context(
@@ -85,7 +81,7 @@ def login_page(
 ):
     if is_authenticated(request):
         return RedirectResponse(url=next, status_code=302)
-    return templates.TemplateResponse(
+    return render(
         request,
         "login.html",
         _auth_context(next=next, error=error, mode=mode),
@@ -103,7 +99,7 @@ def login_submit(
 ):
     if mode == "password":
         if not verify_password(password):
-            return templates.TemplateResponse(
+            return render(
                 request,
                 "login.html",
                 _auth_context(
@@ -120,7 +116,7 @@ def login_submit(
 
     status, dev_token = account_service.request_login_link(db, email)
     if status == "invalid":
-        return templates.TemplateResponse(
+        return render(
             request,
             "login.html",
             _auth_context(
@@ -132,7 +128,7 @@ def login_submit(
             status_code=400,
         )
     if status == "not_found":
-        return templates.TemplateResponse(
+        return render(
             request,
             "login.html",
             _auth_context(
@@ -147,7 +143,7 @@ def login_submit(
         dev_link = (
             account_service.build_auth_url(dev_token, "signup_verify") if dev_token else None
         )
-        return templates.TemplateResponse(
+        return render(
             request,
             "auth_email_sent.html",
             _auth_context(
@@ -161,7 +157,7 @@ def login_submit(
     dev_link = (
         account_service.build_auth_url(dev_token, "login_magic") if dev_token else None
     )
-    return templates.TemplateResponse(
+    return render(
         request,
         "auth_email_sent.html",
         _auth_context(
@@ -184,7 +180,7 @@ def verify_email(
 
     account = account_service.verify_token(db, token, purpose)
     if not account:
-        return templates.TemplateResponse(
+        return render(
             request,
             "login.html",
             _auth_context(

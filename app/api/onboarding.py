@@ -4,7 +4,6 @@ import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
@@ -16,10 +15,10 @@ from app.core.auth import (
 from app.core.db import get_db
 from app.schemas.onboarding import OnboardingProfileOut, OnboardingStatus
 from app.services import onboarding_service
+from app.utils.templates import render
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/status", response_model=OnboardingStatus)
@@ -98,7 +97,7 @@ def onboarding_ui(request: Request, db: Session = Depends(get_db)):
 
     account_id = get_account_id(request)
     user = onboarding_service.get_or_create_user(db, account_id=account_id)
-    return templates.TemplateResponse(
+    return render(
         request,
         "onboarding.html",
         {"user": user, "authed": is_authenticated(request), "active": "settings"},
