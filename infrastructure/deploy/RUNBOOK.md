@@ -1,15 +1,60 @@
 # MatchForge — DigitalOcean App Platform Runbook
 
+## Environments (dev → stage → prod)
+
+| Tier | Where | URL | DB | Deploy trigger | Status |
+|------|-------|-----|----|----------------|--------|
+| **Dev** | CT108 LXC (`matchforge-dev`) | http://192.168.1.108/dashboard · Tailscale funnel | Local PG `matchforge_dev` | Manual (`systemctl restart matchforge`) | **Live** |
+| **Stage** | DO App Platform `matchforge-dev` | https://dev.match-forge.com | Separate managed PG (spec ready) | `main` push → GH Actions (when enabled) | **Not provisioned** |
+| **Prod** | DO App Platform `matchforge` | https://match-forge.com | Managed PG `db` component | `v*` tag or manual GH Actions | **Live** |
+
+### CI/CD pipeline (`.github/workflows/deploy.yml`)
+
+```
+┌─────────────┐     push main / tag v* / workflow_dispatch
+│   GitHub    │──────────────────────────────────────────────┐
+└─────────────┘                                              │
+                                                             ▼
+                                                    ┌────────────────┐
+                                                    │  build (GHA)   │
+                                                    │ docker build   │
+                                                    │ push DOCR      │
+                                                    │ web:latest     │
+                                                    └───────┬────────┘
+                                                            │
+              ┌─────────────────────────────────────────────┼──────────────────────────┐
+              │                                             │                          │
+              ▼                                             ▼                          ▼
+     push main only                              tag v* OR manual                (future)
+     image in registry                           deploy-prod job                 deploy-dev job
+     no app rollout                             doctl create-deployment         DO_DEV_APP_ID
+                                                DO_PROD_APP_ID                on main push
+```
+
+**GitHub repo secrets (configured):**
+- `DIGITALOCEAN_ACCESS_TOKEN` — DO API / registry login
+- `DO_PROD_APP_ID` — `a0817ef0-3412-4f03-858b-a89c987092ad`
+
+**Pending for stage:**
+- `DO_DEV_APP_ID` — create app from `matchforge-dev.app.yaml`, then add secret and uncomment `deploy-dev` in workflow
+
+**Typical flows:**
+1. **Local dev** — code on CT108, test with Grok (`LLM_PROVIDER=xai`), commit, `git push origin main`
+2. **Registry update** — every `main` push builds + pushes `registry.digitalocean.com/matchforge/web:latest` (no prod rollout)
+3. **Prod release** — `git tag v0.1.2 && git push origin v0.1.2` **or** Actions → Deploy MatchForge → `deploy_target: prod`
+4. **Stage (when live)** — uncomment `deploy-dev` job; `main` push auto-deploys to `dev.match-forge.com`
+
 ## Stack
 
 - **Runtime:** FastAPI + uvicorn on port 8000 (Dockerfile)
 - **DB:** DO managed PostgreSQL 16 + pgvector (`db` component)
+- **AI:** xAI Grok via `LLM_PROVIDER=xai` (dev + prod)
 - **Region:** `tor1`
-- **Domain:** `match-forge.com` (+ `www` alias)
+- **Domain:** `match-forge.com` (+ `www` alias); stage target `dev.match-forge.com`
 
-## Deploy / update (DOCR — current)
+## Manual deploy (DOCR fallback)
 
-GitHub is not linked to DigitalOcean yet; prod deploys from **DO Container Registry**.
+Use when GitHub Actions is unavailable:
 
 ```bash
 source ~/.grok/secrets/digitalocean.env
@@ -29,7 +74,27 @@ source ~/.grok/secrets/matchforge-prod.env
 doctl apps update a0817ef0-3412-4f03-858b-a89c987092ad --spec /tmp/matchforge-deploy.yaml
 ```
 
-To switch to GitHub deploy later: link GitHub in DO console, revert `matchforge.app.yaml` to `github:` + `dockerfile_path`, push.
+## Provision staging (one-time)
+
+```bash
+source ~/.grok/secrets/digitalocean.env
+source ~/.grok/secrets/matchforge-prod.env
+source ~/.grok/secrets/xai.env
+TEMPLATE=/opt/matchforge/infrastructure/deploy/matchforge-dev.app.yaml
+sed \
+  -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \
+  -e "s|__AUTH_PASSWORD__|${AUTH_PASSWORD}|g" \
+  -e "s|__SMTP_HOST__|${SMTP_HOST}|g" \
+  -e "s|__SMTP_PORT__|${SMTP_PORT}|g" \
+  -e "s|__SMTP_USER__|${SMTP_USER}|g" \
+  -e "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" \
+  -e "s|__SMTP_FROM__|${SMTP_FROM}|g" \
+  -e "s|__SMTP_USE_TLS__|${SMTP_USE_TLS}|g" \
+  -e "s|__XAI_API_KEY__|${XAI_API_KEY}|g" \
+  "${TEMPLATE}" > /tmp/matchforge-dev.yaml
+doctl apps create --spec /tmp/matchforge-dev.yaml
+# Note the app ID → GitHub secret DO_DEV_APP_ID → uncomment deploy-dev in workflow
+```
 
 ## Database init
 
@@ -62,8 +127,9 @@ doctl apps create-deployment <APP_ID> --deployment-id <prior-id>
 
 ## Prod limitations
 
-- **No local Ollama** on App Platform — screenshot vision/ranking requires a remote `OLLAMA_BASE_URL` or returns degraded health on `/health/ollama`.
+- **No Playwright** on App Platform — social enrichment degrades to HTTP/search.
 - **Ephemeral disk** — uploaded screenshots do not persist across container restarts without external object storage (future work).
+- **Grok API** — pay-per-use; set `XAI_API_KEY` in app env (via `render-spec.sh`).
 
 ## Secrets rotation
 
