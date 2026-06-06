@@ -27,9 +27,9 @@ from app.services.model_router import route
 router = APIRouter(tags=["dashboard"])
 
 
-def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDashboard:
-    user = onboarding_service.get_or_create_user(db, account_id=account_id)
-    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+def _shortlist_rankings(
+    db: Session, account_id: int | None = None
+) -> tuple[list[Ranking], int]:
     profile_filter = []
     if account_id is not None:
         profile_filter.append(Profile.account_id == account_id)
@@ -51,6 +51,13 @@ def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDa
     )
     rankings = profile_merge_service.dedupe_shortlist_rankings(rankings)[:50]
     total = db.query(Profile).filter(*profile_filter).count()
+    return rankings, total
+
+
+def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDashboard:
+    user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+    rankings, total = _shortlist_rankings(db, account_id=account_id)
     return PercolatedDashboard(
         total_profiles=total,
         shortlist=rankings,
@@ -79,7 +86,8 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
     if not user.onboarding_complete:
         return RedirectResponse(url="/onboarding", status_code=302)
 
-    data = _percolated_data(db, account_id=account_id)
+    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+    rankings, total = _shortlist_rankings(db, account_id=account_id)
     referrals = referral_service.get_referral_stats(db, account_id)
     agent_est = (
         route("profile_agent").token_cost
@@ -91,16 +99,16 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "trust": trust_card_context(r.profile, r),
             "tokens_spent": profile_tokens_spent(r.profile, db),
         }
-        for r in data.shortlist
+        for r in rankings
     ]
     return render(
         request,
         "dashboard.html",
         {
-            "total": data.total_profiles,
-            "shortlist": data.shortlist,
+            "total": total,
+            "shortlist": rankings,
             "cards": cards,
-            "preference": data.preference_vector,
+            "preference": pref,
             "match_profile_label": match_profile_label(
                 gender=user.gender,
                 preferred_genders=user.preferred_genders,
