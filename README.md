@@ -15,7 +15,7 @@
 
 **Core Philosophy:**
 - **Screenshot-first** — universal input, no platform API drama
-- **Privacy-first** — Ollama on-box; no cloud by default
+- **Privacy-first** — your data stays in your DB; LLM calls use xAI Grok (configurable)
 - **Toolbox model** — simple drag-and-drop workflow for real users
 - **Iterative R&D** — narrow MVP now; JSON exports, Playwright connectors, multi-user later
 
@@ -49,6 +49,8 @@ Trust signals **penalize overall score and percolation priority**. High-risk pro
 
 Social enrichment feeds back into catfish scoring (no public footprint, mismatched details).
 
+Re-uploading the same person (same platform + username) **enriches the existing tile** instead of creating a duplicate. Run `python scripts/dedupe_profiles.py` to merge any legacy duplicates.
+
 ## MVP Features (this iteration)
 
 | Feature | Endpoint / UI |
@@ -69,7 +71,7 @@ Social enrichment feeds back into catfish scoring (no public footprint, mismatch
 | Backend | Python 3.12 + FastAPI + SQLAlchemy |
 | DB | PostgreSQL 16 + pgvector |
 | Cache | Redis 7 |
-| AI | Ollama — `llava`/`moondream` (vision), `llama3.2` (reasoning) |
+| AI | xAI Grok (`grok-4.3` vision + text) via `LLM_PROVIDER=xai` |
 | Browser automation | Playwright (social enrichment) |
 | Frontend | FastAPI templates + vanilla JS |
 
@@ -81,10 +83,9 @@ cd /opt/matchforge && source venv/bin/activate
 # One-time DB init + seed preference vector
 python scripts/init_db.py
 
-# Ensure Ollama models are pulled
-ollama pull llava && ollama pull llama3.2
-# On 4 GB RAM dev boxes, use moondream instead of llava (llava OOMs):
-# ollama pull moondream && VISION_MODEL=moondream
+# Set xAI key in .env (see .env.example)
+# LLM_PROVIDER=xai
+# XAI_API_KEY=...
 
 # Start API
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -95,14 +96,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Dashboard: http://localhost:8000/dashboard
 - API docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
-- Ollama health: http://localhost:8000/health/ollama
+- LLM health: http://localhost:8000/health/llm
 
 ## Onboarding Flow
 
 1. Open http://localhost:8000/onboarding (or `/dashboard` — redirects if not complete).
 2. Select gender and dating intentions.
 3. Optionally upload liked-profile example screenshots.
-4. Click **Build My Preference Vector** — Ollama generates traits, weights, and ui_context.
+4. Click **Build My Preference Vector** — Grok generates traits, weights, and ui_context.
 5. You're redirected to the personalized dashboard.
 
 **API test (no examples):**
@@ -118,7 +119,7 @@ curl http://127.0.0.1:8000/onboarding/status
 1. Complete onboarding first.
 2. Open `/dashboard` in your browser.
 3. Drag one or more dating-app screenshots onto the drop zone (Tinder, Bumble, Hinge, etc.).
-3. Click **Analyze & Rank** — each image is sent to local Ollama vision (`llava`).
+3. Click **Analyze & Rank** — each image is sent to Grok vision for extraction + trust scoring.
 4. Extracted fields: name, username, age, bio, location, prompts, interests, red/green flags.
 5. The ranking engine scores compatibility, attractiveness, and red flags against your preference vector.
 6. Results appear in the **Percolated Shortlist**, sorted by priority score.
@@ -129,7 +130,7 @@ Screenshots are saved under `data/uploads/<profile_id>/`.
 
 ## Sample Vision Prompt
 
-The vision service sends this prompt to `llava` (see `app/services/vision_service.py`):
+The vision service sends this prompt to Grok vision (see `app/services/vision_service.py`):
 
 ```
 Analyze this dating app profile screenshot. Extract all visible information.
@@ -139,7 +140,7 @@ interests, photos_description, red_flags, green_flags, attractiveness_notes, con
 
 ## Sample Ranking Prompt
 
-The ranking service sends profile + preference vector to `llama3.2`:
+The ranking service sends profile + preference vector + trust signals to Grok:
 
 ```
 Score this profile against the user's preferences.
@@ -158,7 +159,7 @@ Seeded by `scripts/init_db.py` with default traits:
 
 Customize via direct DB edit or future settings UI.
 
-## Ollama System Prompts
+## LLM System Prompts
 
 | Stage | Location | Purpose |
 |-------|----------|---------|
@@ -191,7 +192,9 @@ Customize via direct DB edit or future settings UI.
 cd /opt/matchforge && source venv/bin/activate
 python scripts/migrate_trust.py          # add trust columns
 python tests/generate_samples.py         # create sample screenshots
-python tests/test_trust.py               # unit tests (no Ollama)
+python tests/test_trust.py               # unit tests (no LLM)
+python tests/test_profile_merge.py       # dedup / merge helpers
+python scripts/dedupe_profiles.py        # merge legacy duplicate tiles
 
 # Live upload with trust breakdown
 curl -X POST http://127.0.0.1:8000/toolbox/upload-screenshots \
@@ -210,7 +213,7 @@ GET  /profiles/{id}                # single profile detail
 POST /profiles/feedback            # {"ranking_id": 1, "feedback": "like"}
 GET  /dashboard/percolated         # JSON shortlist
 GET  /dashboard                  # HTML UI
-GET  /health /health/db /health/ollama
+GET  /health /health/db /health/llm
 ```
 
 ## Container Services
@@ -218,17 +221,14 @@ GET  /health /health/db /health/ollama
 Native (host):
 - PostgreSQL 16 — `matchforge_dev` / user `matchforge` / pgvector enabled
 - Redis 7 — `redis://localhost:6379/0`
-- Ollama — `http://localhost:11434`
-
 Optional docker-compose stack (offset ports for isolation):
 ```bash
-docker compose up -d   # ollama:11434, postgres:5433, redis:6380
+docker compose up -d   # postgres:5433, redis:6380
 ```
 
 ## Resource Recommendations
 
-Ollama vision + LLM inference needs **≥12 GB RAM** and **6 CPU cores** for comfortable dev.
-Current CT may be provisioned lower — increase via Proxmox if model loads fail or inference is slow.
+Grok API calls are pay-per-use (~12 tokens per screenshot upload). Dev CT runs fine on 4 GB RAM since inference is remote.
 
 ## Responsible Use
 
@@ -247,11 +247,11 @@ app/
   api/                 toolbox, profiles, dashboard, health
   models/              Profile, Ranking, PreferenceVector, SocialEnrichment
   schemas/             Pydantic request/response types
-  services/            vision, ranking, trust, social enrichment
+  services/            vision, ranking, trust, profile_merge, social enrichment
 templates/             dashboard.html, onboarding.html
 static/                CSS + JS
-scripts/               init_db.py, migrate_trust.py
-tests/                 sample screenshots + trust unit tests
+scripts/               init_db.py, migrate_trust.py, dedupe_profiles.py
+tests/                 sample screenshots + trust/merge unit tests
 data/uploads/          screenshot storage
 ```
 

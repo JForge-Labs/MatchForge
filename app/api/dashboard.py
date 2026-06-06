@@ -13,7 +13,12 @@ from app.core.auth import (
 from app.core.db import get_db
 from app.models.profile import Profile, Ranking
 from app.schemas.profile import PercolatedDashboard
-from app.services import credit_service, onboarding_service, referral_service
+from app.services import (
+    credit_service,
+    onboarding_service,
+    profile_merge_service,
+    referral_service,
+)
 from app.utils.profile_labels import format_user_badge, match_profile_label
 from app.utils.trust_display import trust_card_context
 
@@ -28,6 +33,9 @@ def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDa
     if account_id is not None:
         profile_filter.append(Profile.account_id == account_id)
 
+    if account_id is not None:
+        profile_merge_service.merge_duplicate_profiles(db, account_id)
+
     rankings = (
         db.query(Ranking)
         .join(Profile, Ranking.profile_id == Profile.id)
@@ -36,9 +44,10 @@ def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDa
         )
         .filter(*profile_filter)
         .order_by(Ranking.percolation_priority.desc())
-        .limit(50)
+        .limit(100)
         .all()
     )
+    rankings = profile_merge_service.dedupe_shortlist_rankings(rankings)[:50]
     total = db.query(Profile).filter(*profile_filter).count()
     return PercolatedDashboard(
         total_profiles=total,
