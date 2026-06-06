@@ -5,7 +5,7 @@
 | Tier | Where | URL | DB | Deploy trigger | Status |
 |------|-------|-----|----|----------------|--------|
 | **Dev** | CT108 LXC (`matchforge-dev`) | http://192.168.1.108/dashboard · Tailscale funnel | Local PG `matchforge_dev` | Manual (`systemctl restart matchforge`) | **Live** |
-| **Stage** | DO App Platform `matchforge-dev` | https://dev.match-forge.com | Separate managed PG (spec ready) | `main` push → GH Actions (when enabled) | **Not provisioned** |
+| **Stage** | DO App Platform `matchforge-dev` | https://dev.match-forge.com | Separate managed PG | `main` push → GH Actions `deploy-stage` | **Live** (`a41e0b2e-…`) |
 | **Prod** | DO App Platform `matchforge` | https://match-forge.com | Managed PG `db` component | `v*` tag or manual GH Actions | **Live** |
 
 ### CI/CD pipeline (`.github/workflows/deploy.yml`)
@@ -25,24 +25,24 @@
               ┌─────────────────────────────────────────────┼──────────────────────────┐
               │                                             │                          │
               ▼                                             ▼                          ▼
-     push main only                              tag v* OR manual                (future)
-     image in registry                           deploy-prod job                 deploy-dev job
-     no app rollout                             doctl create-deployment         DO_DEV_APP_ID
-                                                DO_PROD_APP_ID                on main push
+     push main                                   tag v* OR manual                workflow_dispatch
+     deploy-stage job                            deploy-prod job                 stage / prod
+     dev.match-forge.com                         match-forge.com
+     DO_DEV_APP_ID                               DO_PROD_APP_ID
 ```
 
 **GitHub repo secrets (configured):**
 - `DIGITALOCEAN_ACCESS_TOKEN` — DO API / registry login
 - `DO_PROD_APP_ID` — `a0817ef0-3412-4f03-858b-a89c987092ad`
 
-**Pending for stage:**
-- `DO_DEV_APP_ID` — create app from `matchforge-dev.app.yaml`, then add secret and uncomment `deploy-dev` in workflow
+**GitHub secrets (staging):**
+- `DO_DEV_APP_ID` — `a41e0b2e-3407-4ad7-aad7-a82e5b80495b`
 
 **Typical flows:**
 1. **Local dev** — code on CT108, test with Grok (`LLM_PROVIDER=xai`), commit, `git push origin main`
-2. **Registry update** — every `main` push builds + pushes `registry.digitalocean.com/matchforge/web:latest` (no prod rollout)
+2. **Stage auto-deploy** — every `main` push builds, pushes DOCR, and rolls out to `dev.match-forge.com`
 3. **Prod release** — `git tag v0.1.2 && git push origin v0.1.2` **or** Actions → Deploy MatchForge → `deploy_target: prod`
-4. **Stage (when live)** — uncomment `deploy-dev` job; `main` push auto-deploys to `dev.match-forge.com`
+4. **Manual stage** — Actions → `deploy_target: stage` (without waiting for a new build's stage job)
 
 ## Stack
 
