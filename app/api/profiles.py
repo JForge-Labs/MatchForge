@@ -1,5 +1,7 @@
 """Profile enrichment, evidence, and feedback endpoints."""
 import logging
+import shutil
+from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -15,7 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import get_account_id, require_auth
 from app.core.db import get_db
-from app.models.profile import Profile, Ranking, SocialEnrichment
+from app.models.profile import Profile, ProfileEvidence, Ranking, SocialEnrichment
 from app.schemas.profile import EnrichRequest, EnrichResult, FeedbackRequest, ShareOut
 from app.services import (
     agent_service,
@@ -327,6 +329,34 @@ def share_ranking_analysis(
     if not payload:
         raise HTTPException(404, "Ranking not found")
     return payload
+
+
+@router.delete("/{profile_id}")
+def delete_profile(
+    request: Request, profile_id: int, db: Session = Depends(get_db)
+):
+    """Remove a profile workup and all associated rankings, evidence, and uploads."""
+    require_auth(request)
+    account_id = get_account_id(request)
+    profile = _owned_profile(db, profile_id, account_id)
+
+    db.query(Ranking).filter(Ranking.profile_id == profile_id).delete(
+        synchronize_session=False
+    )
+    db.query(SocialEnrichment).filter(
+        SocialEnrichment.profile_id == profile_id
+    ).delete(synchronize_session=False)
+    db.query(ProfileEvidence).filter(
+        ProfileEvidence.profile_id == profile_id
+    ).delete(synchronize_session=False)
+    db.delete(profile)
+
+    upload_dir = Path("data/uploads") / str(profile_id)
+    if upload_dir.is_dir():
+        shutil.rmtree(upload_dir, ignore_errors=True)
+
+    db.commit()
+    return {"status": "deleted", "profile_id": profile_id}
 
 
 @router.get("/{profile_id}")
