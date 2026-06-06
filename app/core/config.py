@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     auth_password: str = ""
     app_url: str = "http://localhost:8000"
 
+    # Email (SMTP) — required in production for signup verification
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "MatchForge <noreply@match-forge.com>"
+    smtp_use_tls: bool = True
+
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     log_level: str = "info"

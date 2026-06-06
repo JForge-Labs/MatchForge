@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Check your email — MatchForge{% endblock %}
+
+{% block content %}
+<section class="auth-card">
+  <h1>Check your email</h1>
+  <p class="auth-sub">
+    {% if message %}{{ message }}{% elif purpose == 'signup' %}
+    We sent a confirmation link to <strong>{{ email }}</strong>.
+    {% else %}
+    We sent a sign-in link to <strong>{{ email }}</strong>.
+    {% endif %}
+  </p>
+
+  <div class="status success">
+    Open the link in your inbox to continue. Links expire after a short time.
+  </div>
+
+  {% if not smtp_configured and dev_link and app_env == 'development' %}
+  <div class="dev-link-box">
+    <p><strong>Dev mode:</strong> SMTP is not configured. Use this link instead:</p>
+    <p><a href="{{ dev_link }}">{{ dev_link }}</a></p>
+  </div>
+  {% endif %}
+
+  <p class="auth-foot"><a href="/login">← Back to sign in</a></p>
+</section>
+{% endblock %}

@@ -10,19 +10,12 @@ from app.core.config import get_settings
 from app.models.profile import PreferenceVector
 from app.models.user import UserProfile
 from app.services import vision_service
+from app.utils.profile_labels import GOAL_LABELS, format_seeking, match_profile_label
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-INTENTION_LABELS = {
-    "ltr": "Long-term relationship",
-    "marriage": "Marriage",
-    "casual": "Casual dating / Fun",
-    "hookups": "Short-term / Hookups",
-    "friendship": "Friendship",
-    "undecided": "Undecided",
-    "other": "Other",
-}
+INTENTION_LABELS = GOAL_LABELS
 
 BASE_WEIGHTS_BY_INTENT = {
     "ltr": {"compatibility": 0.50, "attractiveness": 0.20, "red_flags": 0.30},
@@ -37,8 +30,9 @@ BASE_WEIGHTS_BY_INTENT = {
 PREFERENCE_VECTOR_PROMPT = """You are a dating preference analyst building a personalized match ranking profile.
 
 USER PROFILE:
-- Gender: {gender}
-- Dating intentions: {intentions}
+- Their gender: {gender}
+- Interested in profiles of: {seeking}
+- Dating goals: {intentions}
 {other_note}
 {examples_block}
 
@@ -76,7 +70,7 @@ Weights must sum to 1.0. Tailor heavily:
 Adapt language and priorities to the user's gender context without stereotyping."""
 
 EXAMPLE_INFERENCE_PROMPT = """This is a dating profile screenshot the USER LIKES or finds appealing.
-They are a {gender} seeking: {intentions}.
+They are a {gender} interested in {seeking} and their goals are: {intentions}.
 
 Analyze what this example reveals about their taste and preferences.
 Return ONLY valid JSON:
@@ -103,7 +97,18 @@ def _parse_json_response(text: str) -> dict:
         raise
 
 
-def get_or_create_user(db: Session) -> UserProfile:
+def get_or_create_user(db: Session, account_id: int | None = None) -> UserProfile:
+    if account_id:
+        user = (
+            db.query(UserProfile).filter(UserProfile.account_id == account_id).first()
+        )
+        if not user:
+            user = UserProfile(account_id=account_id)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        return user
+
     user = db.query(UserProfile).filter(UserProfile.id == 1).first()
     if not user:
         user = UserProfile(id=1)
@@ -113,8 +118,15 @@ def get_or_create_user(db: Session) -> UserProfile:
     return user
 
 
-def get_user_preference(db: Session) -> PreferenceVector | None:
-    user = db.query(UserProfile).filter(UserProfile.id == 1).first()
+def get_user_preference(
+    db: Session, account_id: int | None = None
+) -> PreferenceVector | None:
+    if account_id:
+        user = (
+            db.query(UserProfile).filter(UserProfile.account_id == account_id).first()
+        )
+    else:
+        user = db.query(UserProfile).filter(UserProfile.id == 1).first()
     if user and user.preference_vector_id:
         return (
             db.query(PreferenceVector)
@@ -141,9 +153,13 @@ def _blend_weights(intentions: list[str]) -> dict:
 
 
 def _fallback_preference_vector(
-    gender: str, intentions: list[str], example_analyses: list[dict]
+    gender: str,
+    intentions: list[str],
+    preferred_genders: list[str],
+    example_analyses: list[dict],
 ) -> dict:
     labels = [INTENTION_LABELS.get(i, i) for i in intentions]
+    seeking = format_seeking(preferred_genders)
     traits_from_examples: list[str] = []
     for ex in example_analyses:
         traits_from_examples.extend(ex.get("trait_signals", []))
@@ -165,16 +181,17 @@ def _fallback_preference_vector(
             "interests_preferred": [],
             "intention_alignment": labels,
             "user_gender": gender,
+            "preferred_genders": preferred_genders,
             "user_intentions": intentions,
         },
         "weights": _blend_weights(intentions),
         "ui_context": {
-            "tone": f"Direct, supportive coaching for a {gender} seeking {', '.join(labels)}",
+            "tone": f"Direct, supportive coaching for a {gender} interested in {seeking}",
             "focus_areas": labels,
             "red_flag_lens": dealbreakers,
-            "conversation_style": "warm and intention-aligned",
+            "conversation_style": "warm and goal-aligned",
         },
-        "summary": f"Personalized vector for {gender} seeking {', '.join(labels)}",
+        "summary": f"Match profile for {gender} interested in {seeking} — goals: {', '.join(labels)}",
     }
 
 
@@ -193,11 +210,16 @@ async def _get_embedding(text: str) -> list[float] | None:
 
 
 async def analyze_liked_example(
-    image_bytes: bytes, gender: str, intentions: list[str]
+    image_bytes: bytes,
+    gender: str,
+    intentions: list[str],
+    preferred_genders: list[str],
 ) -> dict:
     labels = [INTENTION_LABELS.get(i, i) for i in intentions]
     prompt = EXAMPLE_INFERENCE_PROMPT.format(
-        gender=gender, intentions=", ".join(labels)
+        gender=gender,
+        seeking=format_seeking(preferred_genders),
+        intentions=", ".join(labels),
     )
     b64 = vision_service._encode_image(image_bytes)
     payload = {
@@ -222,6 +244,7 @@ async def analyze_liked_example(
 async def generate_preference_vector(
     gender: str,
     intentions: list[str],
+    preferred_genders: list[str],
     example_analyses: list[dict],
     other_note: str | None = None,
 ) -> dict:
@@ -235,6 +258,7 @@ async def generate_preference_vector(
     other = f"- Other notes: {other_note}" if other_note else ""
     prompt = PREFERENCE_VECTOR_PROMPT.format(
         gender=gender,
+        seeking=format_seeking(preferred_genders),
         intentions=", ".join(labels),
         other_note=other,
         examples_block=examples_block,
@@ -254,7 +278,9 @@ async def generate_preference_vector(
             result = _parse_json_response(resp.json().get("response", "{}"))
     except Exception as exc:
         logger.warning("LLM preference generation failed: %s", exc)
-        result = _fallback_preference_vector(gender, intentions, example_analyses)
+        result = _fallback_preference_vector(
+            gender, intentions, preferred_genders, example_analyses
+        )
 
     if "weights" not in result or not result["weights"]:
         result["weights"] = _blend_weights(intentions)
@@ -263,6 +289,7 @@ async def generate_preference_vector(
     result["weights"] = {k: round(v / total, 2) for k, v in w.items()}
 
     result["traits"]["user_gender"] = gender
+    result["traits"]["preferred_genders"] = preferred_genders
     result["traits"]["user_intentions"] = intentions
     return result
 
@@ -271,19 +298,29 @@ async def complete_onboarding(
     db: Session,
     gender: str,
     intentions: list[str],
+    preferred_genders: list[str],
     example_images: list[bytes] | None = None,
     other_note: str | None = None,
+    account_id: int | None = None,
 ) -> UserProfile:
-    user = get_or_create_user(db)
+    user = get_or_create_user(db, account_id=account_id)
     example_analyses: list[dict] = []
 
     if example_images:
         for img in example_images:
-            analysis = await analyze_liked_example(img, gender, intentions)
+            analysis = await analyze_liked_example(
+                img, gender, intentions, preferred_genders
+            )
             example_analyses.append(analysis)
 
     pref_data = await generate_preference_vector(
-        gender, intentions, example_analyses, other_note
+        gender, intentions, preferred_genders, example_analyses, other_note
+    )
+
+    profile_name = match_profile_label(
+        gender=gender,
+        preferred_genders=preferred_genders,
+        goals=intentions,
     )
 
     embedding = await _get_embedding(
@@ -297,7 +334,7 @@ async def complete_onboarding(
             .first()
         )
         if pref:
-            pref.name = f"My Preferences ({gender})"
+            pref.name = profile_name
             pref.description = pref_data.get("summary", "")
             pref.traits = pref_data.get("traits", {})
             pref.weights = pref_data.get("weights", {})
@@ -305,7 +342,7 @@ async def complete_onboarding(
                 pref.embedding = embedding
     else:
         pref = PreferenceVector(
-            name=f"My Preferences ({gender})",
+            name=profile_name,
             description=pref_data.get("summary", ""),
             traits=pref_data.get("traits", {}),
             weights=pref_data.get("weights", {}),
@@ -318,6 +355,7 @@ async def complete_onboarding(
         user.preference_vector_id = pref.id
 
     user.gender = gender
+    user.preferred_genders = preferred_genders
     user.intentions = intentions
     user.example_analyses = example_analyses
     user.ui_context = pref_data.get("ui_context", {})

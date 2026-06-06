@@ -6,8 +6,8 @@
   <div class="container">
     <h1>Dashboard</h1>
     <p class="tagline">Screenshot-first dating intelligence · local &amp; private</p>
-    {% if user %}
-    <p class="user-badge">{{ user.gender | replace('_', ' ') | title }} · {{ user.intentions | join(', ') }}</p>
+    {% if user_badge %}
+    <p class="user-badge">{{ user_badge }} · <a href="/onboarding">Edit profile</a></p>
     {% endif %}
   </div>
 </header>
@@ -32,16 +32,17 @@
     <span class="stat-num">{{ total }}</span>
     <span class="stat-label">Profiles</span>
   </div>
-  {% if preference %}
+  {% if match_profile_label %}
   <div class="stat-card">
-    <span class="stat-num stat-text">{{ preference.name }}</span>
-    <span class="stat-label">Preference Vector</span>
+    <span class="stat-num stat-text">{{ match_profile_label }}</span>
+    <span class="stat-label">Match profile</span>
   </div>
   {% endif %}
 </section>
 
 <section class="shortlist">
-  <h2>Percolated Shortlist</h2>
+  <h2>Shortlist</h2>
+  <p class="section-lead">Ranked by match likelihood. Like, pass, and top picks reorder results as you log interactions.</p>
   {% if shortlist %}
   <div class="cards">
     {% for ranking in shortlist %}

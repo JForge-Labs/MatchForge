@@ -14,6 +14,14 @@ RUN_DB_INIT=true
 SECRET_KEY=CHANGEME
 AUTH_PASSWORD=CHANGEME
 
+# --- Email (SMTP) — required for email signup / magic-link login ---
+SMTP_HOST=CHANGEME
+SMTP_PORT=587
+SMTP_USER=CHANGEME
+SMTP_PASSWORD=CHANGEME
+SMTP_FROM=MatchForge <noreply@match-forge.com>
+SMTP_USE_TLS=true
+
 # --- Database (DO component form — NOT ${db.DATABASE_URL}) ---
 DATABASE_URL=postgresql://${db.USERNAME}:${db.PASSWORD}@${db.HOSTNAME}:${db.PORT}/${db.DATABASE}?sslmode=require
 
