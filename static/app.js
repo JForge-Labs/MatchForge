@@ -129,18 +129,37 @@ function showStatus(msg, type) {
   uploadStatus.style.whiteSpace = "pre-wrap";
 }
 
-async function enrichProfile(profileId) {
+async function submitAgent(profileId) {
+  const promptEl = document.getElementById(`agent-prompt-${profileId}`);
+  const filesEl = document.getElementById(`agent-files-${profileId}`);
+  const prompt = promptEl?.value?.trim() || "";
+  const files = filesEl?.files;
+  if (!prompt && (!files || !files.length)) {
+    showStatus("Enter a prompt or attach images for the agent.", "error");
+    return;
+  }
+
+  const body = new FormData();
+  body.append("prompt", prompt);
+  if (files) {
+    for (const file of files) body.append("files", file);
+  }
+
+  showStatus("Agent running…", "");
   try {
-    const resp = await fetch("/profiles/enrich", {
+    const resp = await fetch(`/profiles/${profileId}/agent`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      body,
       credentials: "same-origin",
-      body: JSON.stringify({ profile_ids: [profileId] }),
     });
     const data = await resp.json();
-    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Vetting failed");
-    showStatus(`Deep vetting queued for profile ${profileId}`, "ok");
-    setTimeout(() => window.location.reload(), 2000);
+    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Agent failed");
+    const acts = (data.actions || []).join(", ");
+    showStatus(
+      `Agent done (+${data.tokens_charged} tokens, ${data.tokens_spent_total} total on profile). ${acts}. Balance: ${data.balance}`,
+      "ok"
+    );
+    setTimeout(() => window.location.reload(), 1800);
   } catch (err) {
     showStatus(err.message, "error");
   }
@@ -168,52 +187,6 @@ async function vetTopCandidates() {
       btn.textContent = "Vet top 5";
     }
   }
-}
-
-async function addNote(profileId) {
-  const note = window.prompt("Add a private note about this person (3 tokens + rank refresh):");
-  if (!note || !note.trim()) return;
-  try {
-    const body = new FormData();
-    body.append("note", note.trim());
-    const resp = await fetch(`/profiles/${profileId}/evidence/note`, {
-      method: "POST",
-      body,
-      credentials: "same-origin",
-    });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Note failed");
-    showStatus(`Note saved. Balance: ${data.balance} tokens`, "ok");
-    setTimeout(() => window.location.reload(), 1200);
-  } catch (err) {
-    showStatus(err.message, "error");
-  }
-}
-
-async function addMessageSnip(profileId) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.onchange = async () => {
-    if (!input.files?.length) return;
-    const body = new FormData();
-    body.append("file", input.files[0]);
-    showStatus("Analyzing message screenshot…", "");
-    try {
-      const resp = await fetch(`/profiles/${profileId}/evidence/screenshot`, {
-        method: "POST",
-        body,
-        credentials: "same-origin",
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(parseErrorDetail(data) || "Screenshot failed");
-      showStatus(`Message snip added. Balance: ${data.balance} tokens`, "ok");
-      setTimeout(() => window.location.reload(), 1200);
-    } catch (err) {
-      showStatus(err.message, "error");
-    }
-  };
-  input.click();
 }
 
 async function shareAnalysis(rankingId) {

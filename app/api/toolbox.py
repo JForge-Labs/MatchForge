@@ -145,6 +145,10 @@ async def upload_screenshots(
         trust = vetting_service.merge_vetting_into_trust(trust, vetting)
         profile_merge_service.merge_trust_into_profile(profile, trust)
 
+        spent = dict(profile.extracted_data or {})
+        spent["tokens_spent"] = int(spent.get("tokens_spent") or 0) + upload_cost
+        profile.extracted_data = spent
+
         base_scores = await ranking_service.rank_profile(
             profile,
             preference,

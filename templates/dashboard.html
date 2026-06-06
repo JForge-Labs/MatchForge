@@ -181,13 +181,34 @@
         <span>Compat: {{ "%.0f"|format(ranking.compatibility_score) }}</span>
         <span>Attraction: {{ "%.0f"|format(ranking.attractiveness_score) }}</span>
         <span class="red">Red flags: {{ "%.0f"|format(ranking.red_flag_score) }}</span>
+        <span class="token-spent" title="Total tokens invested vetting this profile">
+          {{ item.tokens_spent }} tokens spent
+        </span>
+      </div>
+
+      <div class="agent-panel" data-profile-id="{{ ranking.profile.id }}">
+        <label class="agent-label" for="agent-prompt-{{ ranking.profile.id }}">Enrich with agent</label>
+        <textarea
+          id="agent-prompt-{{ ranking.profile.id }}"
+          class="agent-prompt"
+          rows="2"
+          placeholder="Add context, vouch they're real, paste observations, or ask for a deep vet… Attach profile screenshots from other platforms or chat snips below."
+        ></textarea>
+        <div class="agent-row">
+          <input
+            type="file"
+            id="agent-files-{{ ranking.profile.id }}"
+            class="agent-files"
+            accept="image/*"
+            multiple
+          >
+          <span class="agent-cost-hint">~{{ agent_est_min }}+ tokens · +{{ agent_image_cost }}/image</span>
+          <button type="button" class="btn small primary" onclick="submitAgent({{ ranking.profile.id }})">Run agent</button>
+        </div>
       </div>
 
       <div class="actions">
         <button class="btn small share-btn" onclick="shareAnalysis({{ ranking.id }})">Share</button>
-        <button class="btn small" onclick="addNote({{ ranking.profile.id }})">Add note</button>
-        <button class="btn small" onclick="addMessageSnip({{ ranking.profile.id }})">Message snip</button>
-        <button class="btn small" onclick="enrichProfile({{ ranking.profile.id }})">Deep vet</button>
         <button class="btn small like" onclick="feedback({{ ranking.id }}, 'like')">Like</button>
         <button class="btn small dislike" onclick="feedback({{ ranking.id }}, 'dislike')">Pass</button>
         <button class="btn small super" onclick="feedback({{ ranking.id }}, 'superlike')">Top</button>
