@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Shared analysis — {{ display_name }} — MatchForge{% endblock %}
+
+{% block head %}
+<meta property="og:title" content="MatchForge analysis — {{ display_name }}">
+<meta property="og:description" content="Trust {{ '%.0f'|format(trust.overall_trust) }}/100 · Match {{ '%.0f'|format(ranking.overall_score) }}/100">
+<meta name="description" content="Private dating intelligence shared via MatchForge">
+{% endblock %}
+
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1>Shared analysis</h1>
+    <p class="tagline">A friend shared this MatchForge vetting summary with you</p>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<article class="card card-{{ trust.catfish_flag }} share-card">
+  <div class="card-header">
+    <div class="card-title-block">
+      <h2>{{ display_name }}</h2>
+      {% if profile.username %}
+      <span class="profile-handle">@{{ profile.username }}</span>
+      {% endif %}
+      <span class="vet-badge vet-{{ trust.catfish_flag }}">{{ trust.catfish_label }}</span>
+    </div>
+    <div class="card-scores">
+      <span class="trust-score">{{ "%.0f"|format(trust.overall_trust) }}</span>
+      <span class="score-label">trust</span>
+      <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
+      <span class="score-label">match</span>
+    </div>
+  </div>
+
+  <div class="card-meta">
+    {% if profile.age %}<span>{{ profile.age }}</span>{% endif %}
+    {% if profile.location %}<span>{{ profile.location }}</span>{% endif %}
+    {% if profile.platform %}<span class="platform">{{ profile.platform }}</span>{% endif %}
+  </div>
+
+  <div class="trust-badges">
+    {% if trust.catfish_risk is not none %}
+    <span class="badge {% if trust.catfish_risk < 30 %}badge-green{% elif trust.catfish_risk < 60 %}badge-yellow{% else %}badge-red{% endif %}">
+      Catfish risk {{ "%.0f"|format(trust.catfish_risk) }}%
+    </span>
+    {% endif %}
+    {% if trust.auth is not none %}
+    <span class="badge {% if trust.auth >= 70 %}badge-green{% elif trust.auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+      Authenticity {{ "%.0f"|format(trust.auth) }}%
+    </span>
+    {% endif %}
+  </div>
+
+  {% if ranking.trust_explanation %}
+  <p class="trust-warning">{{ ranking.trust_explanation }}</p>
+  {% endif %}
+
+  {% if ranking.explanation %}
+  <p class="explanation">{{ ranking.explanation }}</p>
+  {% endif %}
+
+  {% if trust.risk_factors %}
+  <ul class="risk-factors">
+    {% for factor in trust.risk_factors %}
+    <li>{{ factor }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <div class="scores-row">
+    <span>Compat: {{ "%.0f"|format(ranking.compatibility_score) }}</span>
+    <span>Attraction: {{ "%.0f"|format(ranking.attractiveness_score) }}</span>
+    <span class="red">Red flags: {{ "%.0f"|format(ranking.red_flag_score) }}</span>
+  </div>
+</article>
+
+{% if referral_url %}
+<section class="share-referral-cta">
+  <h2>Try MatchForge</h2>
+  <p class="section-lead">
+    Upload dating screenshots, get AI trust vetting and ranked shortlists — private and local-first.
+    Sign up with your friend's link for <strong>bonus tokens</strong>.
+  </p>
+  <div class="referral-row">
+    <input type="text" id="share-referral-url" readonly value="{{ referral_url }}" class="referral-input">
+    <a href="{{ referral_url }}" class="btn primary">Sign up free</a>
+    <button type="button" class="btn" onclick="copyShareReferral()">Copy link</button>
+  </div>
+</section>
+{% endif %}
+
+<p class="share-disclaimer">Decision-support only — not a judgment about any person. Data stays on the sharer's account.</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyShareReferral() {
+  const input = document.getElementById("share-referral-url");
+  if (!input) return;
+  navigator.clipboard.writeText(input.value).catch(() => {
+    input.select();
+  });
+}
+</script>
+{% endblock %}

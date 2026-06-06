@@ -4,11 +4,20 @@ import logging
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.auth import require_auth
+from app.core.auth import get_account_id, require_auth
 from app.core.db import get_db
 from app.models.profile import Profile, Ranking
 from app.schemas.profile import TrustScoresOut, UploadResult
-from app.services import onboarding_service, ranking_service, trust_service, vision_service
+from app.services import (
+    credit_service,
+    onboarding_service,
+    ranking_service,
+    referral_service,
+    trust_service,
+    vetting_service,
+    vision_service,
+)
+from app.services.model_router import route
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/toolbox", tags=["toolbox"])
@@ -22,14 +31,15 @@ async def upload_screenshots(
 ):
     """Accept screenshots; extract, trust-analyze, rank, persist."""
     require_auth(request)
-    user = onboarding_service.get_or_create_user(db)
+    account_id = get_account_id(request)
+    user = onboarding_service.get_or_create_user(db, account_id=account_id)
     if not user.onboarding_complete:
         raise HTTPException(
             403,
-            "Complete onboarding first at POST /onboarding/profile or /onboarding",
+            "Complete your profile settings at /onboarding before uploading screenshots.",
         )
 
-    preference = onboarding_service.get_user_preference(db)
+    preference = onboarding_service.get_user_preference(db, account_id=account_id)
     if not preference:
         raise HTTPException(500, "No preference vector — complete onboarding")
 
@@ -37,6 +47,13 @@ async def upload_screenshots(
         return UploadResult(
             profiles_created=0, profiles=[], message="No files uploaded."
         )
+
+    upload_cost = route("profile_screenshot").token_cost
+    valid_files = [f for f in files if f]
+    needed = upload_cost * len(valid_files)
+    credit_service.ensure_can_afford(
+        db, account_id, needed, activity="profile_screenshot"
+    )
 
     user_context = {
         "gender": user.gender,
@@ -54,14 +71,37 @@ async def upload_screenshots(
         analysis = await vision_service.analyze_screenshot(
             image_bytes, user_context=user_context
         )
+        if analysis.get("parse_error"):
+            raise HTTPException(
+                503,
+                detail={
+                    "error": "vision_failed",
+                    "message": "Vision analysis failed — no tokens charged.",
+                    "detail": analysis.get("parse_error"),
+                },
+            )
+
+        credit_service.charge_tokens(
+            db, account_id, "profile_screenshot", metadata={"file_index": idx}
+        )
 
         trust = await trust_service.analyze_profile_trust(
             image_bytes_list=[image_bytes],
             bio=analysis.get("bio"),
             profile_metadata=analysis,
         )
+        vetting = await vetting_service.vet_profile(
+            name=analysis.get("name") or analysis.get("username"),
+            bio=analysis.get("bio"),
+            location=analysis.get("location") or analysis.get("hometown"),
+            extracted_data=analysis,
+            trust_analysis=trust,
+            run_web_search=True,
+        )
+        trust = vetting_service.merge_vetting_into_trust(trust, vetting)
 
         profile = Profile(
+            account_id=account_id,
             name=analysis.get("name"),
             username=analysis.get("username"),
             bio=analysis.get("bio"),
@@ -117,6 +157,9 @@ async def upload_screenshots(
                 naturalness_score=trust["naturalness_score"],
                 catfish_risk_score=trust["catfish_risk_score"],
                 bot_risk_score=trust["bot_risk_score"],
+                overall_trust_score=trust.get("overall_trust_score"),
+                catfish_flag=trust.get("catfish_flag"),
+                catfish_flag_label=trust.get("catfish_flag_label"),
                 trust_explanation=trust.get("trust_explanation"),
                 trust_badge=trust.get("trust_badge"),
                 catfish_badge=trust.get("catfish_badge"),
@@ -125,16 +168,20 @@ async def upload_screenshots(
             )
         )
 
+    if created_profiles:
+        referral_service.mark_first_upload(db, account_id)
+
     db.commit()
     for p in created_profiles:
         db.refresh(p)
 
+    balance = credit_service.get_balance(db, account_id)
     return UploadResult(
         profiles_created=len(created_profiles),
         profiles=created_profiles,
         trust_breakdown=trust_breakdown,
         message=(
-            f"Processed {len(created_profiles)} screenshot(s) with trust analysis "
-            f"({user.gender}, {', '.join(user.intentions or [])})."
+            f"Processed {len(created_profiles)} screenshot(s). "
+            f"Token balance: {balance}."
         ),
     )

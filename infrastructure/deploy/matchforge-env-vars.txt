@@ -25,10 +25,11 @@ SMTP_USE_TLS=true
 # --- Database (DO component form — NOT ${db.DATABASE_URL}) ---
 DATABASE_URL=postgresql://${db.USERNAME}:${db.PASSWORD}@${db.HOSTNAME}:${db.PORT}/${db.DATABASE}?sslmode=require
 
-# --- AI (optional cloud / remote Ollama — App Platform has no local Ollama) ---
-OLLAMA_BASE_URL=
-VISION_MODEL=moondream
-TEXT_MODEL=llama3.2
+# --- xAI Grok (required) ---
+XAI_API_KEY=CHANGEME
+XAI_VISION_MODEL=grok-4.3
+XAI_TEXT_FAST=grok-4.20-0309-non-reasoning
+XAI_TEXT_REASON=grok-4.20-0309-reasoning
 
 # --- Flags (prod hardening) ---
 # RUN_DB_INIT=true on first deploy only if schema missing; safe to leave true (idempotent init_db)

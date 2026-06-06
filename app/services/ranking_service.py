@@ -3,10 +3,9 @@ import json
 import logging
 import re
 
-import httpx
-
 from app.core.config import get_settings
 from app.models.profile import PreferenceVector, Profile, Ranking
+from app.services import llm_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -132,19 +131,10 @@ async def rank_profile(
         trust_data=json.dumps(trust_data or profile.trust_analysis or {}, indent=2),
     )
     try:
-        async with httpx.AsyncClient(timeout=600.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/generate",
-                json={
-                    "model": settings.text_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "format": "json",
-                },
-            )
-            resp.raise_for_status()
-            raw = resp.json().get("response", "{}")
-        return _parse_json_response(raw)
+        result, _usage = await llm_service.generate_json(
+            prompt, model=settings.xai_text_fast, timeout=600.0
+        )
+        return result
     except Exception as exc:
         logger.warning("LLM ranking failed for profile %s: %s", profile.id, exc)
         return _fallback_scores(profile, preference)

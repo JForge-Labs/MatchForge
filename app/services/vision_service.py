@@ -1,30 +1,33 @@
-"""Screenshot vision analysis via local Ollama."""
-import base64
+"""Screenshot vision analysis via xAI Grok."""
 import json
 import logging
-import re
 from io import BytesIO
 from pathlib import Path
 
 import httpx
 from PIL import Image
 
-from app.core.config import get_settings
+from app.services import llm_service
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
-VISION_PROMPT = """Analyze this dating app profile screenshot. Extract all visible information.
+VISION_PROMPT = """Analyze this screenshot of a person's profile. It may be a dating app OR a social network (Facebook, Instagram, LinkedIn, X/Twitter, TikTok, etc.).
 
-Return ONLY valid JSON with this structure:
+Extract ALL visible text and identity signals. Read carefully — usernames and URLs are often in small header text, browser address bars, or link previews.
+
+Return ONLY valid JSON:
 {
-  "name": "display name or null",
-  "username": "handle/username or null",
+  "name": "display name as shown or null",
+  "username": "handle, vanity username, or profile slug (e.g. from facebook.com/jane.doe → jane.doe) or null",
+  "profile_url": "full profile URL if visible (browser bar, share link, m.facebook.com/...) or null",
   "age": 25 or null,
-  "bio": "full bio text or null",
-  "location": "city/area or null",
-  "platform": "tinder|bumble|hinge|okcupid|other",
-  "prompts": ["any profile prompts and answers"],
+  "bio": "About/bio/intro text or null",
+  "location": "city/area/live location or null",
+  "hometown": "hometown if shown or null",
+  "work": "employer/job if shown or null",
+  "education": "school/university if shown or null",
+  "platform": "tinder|bumble|hinge|okcupid|facebook|instagram|linkedin|x|tiktok|other",
+  "prompts": ["other visible profile fields or prompt Q&A"],
   "interests": ["listed interests/hobbies"],
   "photos_description": "brief description of visible photos",
   "red_flags": ["potential concerns visible in profile"],
@@ -33,7 +36,14 @@ Return ONLY valid JSON with this structure:
   "confidence": 0.0 to 1.0
 }
 
-Be thorough but factual. Only include what is actually visible in the screenshot."""
+For Facebook specifically:
+- platform must be "facebook"
+- Read the browser URL bar if visible: facebook.com/USERNAME or m.facebook.com/USERNAME → put USERNAME in username
+- The large name at top is "name"; the vanity slug in URLs is "username" (they differ)
+- Capture About, Intro, Work, Education, Places lived, Relationship status into bio/prompts/work/education/hometown
+- Do NOT return the literal string "unknown" — use null when not visible
+
+Be thorough but factual. Only include what is actually visible."""
 
 AUTHENTICITY_PROMPT = """Analyze this dating profile photo for authenticity and catfish signals.
 
@@ -68,32 +78,8 @@ Return ONLY valid JSON:
 
 
 def _encode_image(image_bytes: bytes, max_dim: int = 1024) -> str:
-    """Resize and base64-encode an image for Ollama vision models."""
-    img = Image.open(BytesIO(image_bytes))
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    w, h = img.size
-    if max(w, h) > max_dim:
-        scale = max_dim / max(w, h)
-        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
-    buf = BytesIO()
-    img.save(buf, format="JPEG", quality=85)
-    return base64.b64encode(buf.getvalue()).decode("utf-8")
-
-
-def _parse_json_response(text: str) -> dict:
-    """Extract JSON from model output, tolerating markdown fences."""
-    text = text.strip()
-    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
-    if fence:
-        text = fence.group(1).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        brace = re.search(r"\{[\s\S]*\}", text)
-        if brace:
-            return json.loads(brace.group())
-        raise
+    """Backward-compatible helper for onboarding image encoding."""
+    return llm_service.encode_image_jpeg(image_bytes, max_dim=max_dim).split(",", 1)[1]
 
 
 def _build_vision_prompt(user_context: dict | None = None) -> str:
@@ -108,23 +94,13 @@ def _build_vision_prompt(user_context: dict | None = None) -> str:
     )
 
 
-async def _vision_analyze(prompt: str, image_bytes: bytes) -> dict:
-    """Run a vision prompt against a single image."""
-    b64 = _encode_image(image_bytes)
-    payload = {
-        "model": settings.vision_model,
-        "prompt": prompt,
-        "images": [b64],
-        "stream": False,
-        "format": "json",
-    }
-    async with httpx.AsyncClient(timeout=900.0) as client:
-        resp = await client.post(
-            f"{settings.ollama_base_url}/api/generate", json=payload
-        )
-        resp.raise_for_status()
-        raw = resp.json().get("response", "{}")
-    return _parse_json_response(raw)
+async def _vision_analyze(
+    prompt: str, image_bytes: bytes, max_dim: int = 1024
+) -> dict:
+    result, _usage = await llm_service.analyze_image_json(
+        prompt, image_bytes, max_dim=max_dim
+    )
+    return result
 
 
 async def analyze_authenticity(image_bytes: bytes) -> dict:
@@ -176,18 +152,27 @@ async def analyze_screenshot(
     image_bytes: bytes, user_context: dict | None = None
 ) -> dict:
     """Run vision model on a single screenshot; returns extracted profile data."""
+    from app.services.profile_extract_service import (
+        enrich_extracted_profile,
+        normalize_extracted_profile,
+    )
+
     try:
-        return await _vision_analyze(_build_vision_prompt(user_context), image_bytes)
+        raw = await _vision_analyze(
+            _build_vision_prompt(user_context), image_bytes, max_dim=1536
+        )
+        normalized = normalize_extracted_profile(raw)
+        return await enrich_extracted_profile(normalized)
     except (json.JSONDecodeError, ValueError, httpx.HTTPError) as exc:
         logger.warning("Vision JSON parse failed: %s", exc)
-        return {
+        return normalize_extracted_profile({
             "name": None,
             "username": None,
             "bio": "",
             "platform": "other",
             "confidence": 0.3,
             "parse_error": str(exc),
-        }
+        })
 
 
 def save_screenshot(image_bytes: bytes, profile_id: int, index: int) -> str:

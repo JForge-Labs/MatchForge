@@ -7,6 +7,10 @@ TEMPLATE="${ROOT}/infrastructure/deploy/matchforge.app.yaml"
 OUT="${1:-/tmp/matchforge-deploy.yaml}"
 
 source "${HOME}/.grok/secrets/matchforge-prod.env"
+if [[ -f "${HOME}/.grok/secrets/xai.env" ]]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.grok/secrets/xai.env"
+fi
 if [[ -f "${HOME}/.grok/secrets/digitalocean.env" ]]; then
   # shellcheck disable=SC1091
   source "${HOME}/.grok/secrets/digitalocean.env"
@@ -22,6 +26,9 @@ sed \
   -e "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" \
   -e "s|__SMTP_FROM__|${SMTP_FROM}|g" \
   -e "s|__SMTP_USE_TLS__|${SMTP_USE_TLS}|g" \
+  -e "s|__XAI_API_KEY__|${XAI_API_KEY}|g" \
   "${TEMPLATE}" > "${OUT}"
+
+# Billing vars are inlined in app.yaml (not secrets)
 
 echo "Rendered: ${OUT}"

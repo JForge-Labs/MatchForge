@@ -24,13 +24,13 @@ def _auth_context(**extra):
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request, error: str | None = None):
+def signup_page(request: Request, error: str | None = None, ref: str | None = None):
     if is_authenticated(request):
         return RedirectResponse(url="/onboarding", status_code=302)
     return templates.TemplateResponse(
         request,
         "signup.html",
-        _auth_context(error=error),
+        _auth_context(error=error, referral_code=ref or ""),
     )
 
 
@@ -38,9 +38,12 @@ def signup_page(request: Request, error: str | None = None):
 def signup_submit(
     request: Request,
     email: str = Form(...),
+    referral_code: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    status, dev_token = account_service.request_signup(db, email)
+    status, dev_token = account_service.request_signup(
+        db, email, referral_code=referral_code or None
+    )
     if status == "invalid":
         return templates.TemplateResponse(
             request,

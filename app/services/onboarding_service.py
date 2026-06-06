@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.profile import PreferenceVector
 from app.models.user import UserProfile
-from app.services import vision_service
+from app.services import llm_service, referral_service, vision_service
 from app.utils.profile_labels import GOAL_LABELS, format_seeking, match_profile_label
 
 logger = logging.getLogger(__name__)
@@ -195,20 +195,6 @@ def _fallback_preference_vector(
     }
 
 
-async def _get_embedding(text: str) -> list[float] | None:
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/embeddings",
-                json={"model": settings.embedding_model, "prompt": text},
-            )
-            resp.raise_for_status()
-            return resp.json().get("embedding")
-    except Exception as exc:
-        logger.info("Embedding unavailable (%s) — continuing without vector", exc)
-        return None
-
-
 async def analyze_liked_example(
     image_bytes: bytes,
     gender: str,
@@ -221,23 +207,12 @@ async def analyze_liked_example(
         seeking=format_seeking(preferred_genders),
         intentions=", ".join(labels),
     )
-    b64 = vision_service._encode_image(image_bytes)
-    payload = {
-        "model": settings.vision_model,
-        "prompt": prompt,
-        "images": [b64],
-        "stream": False,
-        "format": "json",
-    }
-    async with httpx.AsyncClient(timeout=900.0) as client:
-        resp = await client.post(
-            f"{settings.ollama_base_url}/api/generate", json=payload
-        )
-        resp.raise_for_status()
-        raw = resp.json().get("response", "{}")
     try:
-        return _parse_json_response(raw)
-    except (json.JSONDecodeError, ValueError):
+        result, _usage = await llm_service.analyze_image_json(
+            prompt, image_bytes, max_dim=1024
+        )
+        return result
+    except (json.JSONDecodeError, ValueError, Exception):
         return {"appeal_factors": ["visual appeal"], "parse_error": True}
 
 
@@ -264,18 +239,9 @@ async def generate_preference_vector(
         examples_block=examples_block,
     )
     try:
-        async with httpx.AsyncClient(timeout=600.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/generate",
-                json={
-                    "model": settings.text_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "format": "json",
-                },
-            )
-            resp.raise_for_status()
-            result = _parse_json_response(resp.json().get("response", "{}"))
+        result, _usage = await llm_service.generate_json(
+            prompt, model=settings.xai_text_fast, timeout=600.0
+        )
     except Exception as exc:
         logger.warning("LLM preference generation failed: %s", exc)
         result = _fallback_preference_vector(
@@ -323,10 +289,6 @@ async def complete_onboarding(
         goals=intentions,
     )
 
-    embedding = await _get_embedding(
-        json.dumps({"traits": pref_data.get("traits"), "summary": pref_data.get("summary", "")})
-    )
-
     if user.preference_vector_id:
         pref = (
             db.query(PreferenceVector)
@@ -338,8 +300,6 @@ async def complete_onboarding(
             pref.description = pref_data.get("summary", "")
             pref.traits = pref_data.get("traits", {})
             pref.weights = pref_data.get("weights", {})
-            if embedding:
-                pref.embedding = embedding
     else:
         pref = PreferenceVector(
             name=profile_name,
@@ -348,8 +308,6 @@ async def complete_onboarding(
             weights=pref_data.get("weights", {}),
             is_default=False,
         )
-        if embedding:
-            pref.embedding = embedding
         db.add(pref)
         db.flush()
         user.preference_vector_id = pref.id
@@ -359,7 +317,10 @@ async def complete_onboarding(
     user.intentions = intentions
     user.example_analyses = example_analyses
     user.ui_context = pref_data.get("ui_context", {})
+    was_complete = user.onboarding_complete
     user.onboarding_complete = True
+    if not was_complete and user.account_id:
+        referral_service.mark_onboarding_complete(db, user.account_id)
     db.commit()
     db.refresh(user)
     return user

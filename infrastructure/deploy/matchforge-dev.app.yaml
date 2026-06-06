@@ -1,7 +1,5 @@
-# MatchForge production — DigitalOcean App Platform (tor1)
-# Secrets (SECRET_KEY, AUTH_PASSWORD) are injected at deploy time via render-spec.sh
-# DATABASE_URL must use component vars — never ${db.DATABASE_URL}
-name: matchforge
+# MatchForge staging — dev.match-forge.com (mirrors prod, separate DB)
+name: matchforge-dev
 region: tor1
 
 services:
@@ -24,13 +22,13 @@ services:
       failure_threshold: 5
     envs:
       - key: APP_ENV
-        value: production
+        value: staging
         scope: RUN_TIME
       - key: APP_DOMAIN
-        value: match-forge.com
+        value: dev.match-forge.com
         scope: RUN_TIME
       - key: APP_URL
-        value: https://match-forge.com
+        value: https://dev.match-forge.com
         scope: RUN_TIME
       - key: PORT
         value: "8000"
@@ -85,15 +83,6 @@ services:
       - key: XAI_TEXT_REASON
         value: grok-4.20-0309-reasoning
         scope: RUN_TIME
-      - key: BILLING_ENABLED
-        value: "false"
-        scope: RUN_TIME
-      - key: SIGNUP_GRANT_TOKENS
-        value: "500"
-        scope: RUN_TIME
-      - key: SEED_MIN_TOKENS
-        value: "500"
-        scope: RUN_TIME
 
 databases:
   - name: db
@@ -101,7 +90,5 @@ databases:
     version: "16"
 
 domains:
-  - domain: match-forge.com
+  - domain: dev.match-forge.com
     type: PRIMARY
-  - domain: www.match-forge.com
-    type: ALIAS
