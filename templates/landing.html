@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}MatchForge — Local AI Dating Intelligence{% endblock %}
+{% block title %}MatchForge — AI Dating Intelligence{% endblock %}
 {% block main_class %}landing-main{% endblock %}
 
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">Self-hosted · Screenshot-first{% if app_env == 'development' %} · Dev{% endif %}</p>
-  <h1>Rank matches with local AI.<br>Keep your data on your box.</h1>
+  <p class="eyebrow">Privacy-first · Screenshot-first · Trust scoring</p>
+  <h1>Rank matches with AI you control.<br>See who’s real before you swipe.</h1>
   <p class="hero-lead">
-    Drag in dating profile screenshots. MatchForge extracts, scores authenticity,
-    ranks against your goals, and surfaces the best matches on your shortlist — powered by Ollama, not the cloud.
+    Drag in dating profile screenshots. MatchForge extracts profiles, scores authenticity and catfish risk,
+    ranks against your goals, and surfaces your best matches on a percolated shortlist.
   </p>
   <div class="hero-cta">
     {% if authed %}

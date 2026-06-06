@@ -1,19 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="{{ env_class }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Privacy-first AI dating intelligence — screenshot upload, trust scoring, personalized ranking.">
+  <meta name="theme-color" content="{{ theme_color }}">
   <title>{% block title %}MatchForge{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="manifest" href="/static/site.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{{ env_class }}">
+  {% if show_env_banner %}
+  <div class="env-banner {{ env_class }}" role="status" aria-label="{{ env_label }} environment">
+    <span class="env-banner-dot" aria-hidden="true"></span>
+    <span class="env-banner-label">{{ env_label }}</span>
+    <span class="env-banner-host">{{ app_domain }}</span>
+  </div>
+  {% endif %}
   <nav class="nav">
     <div class="container nav-inner">
-      <a href="/" class="nav-brand">MatchForge</a>
+      <a href="/" class="nav-brand">
+        <img src="/static/favicon.svg" alt="" class="nav-logo" width="24" height="24">
+        <span>MatchForge</span>
+        {% if show_env_banner %}<span class="nav-env-pill">{{ env_short }}</span>{% endif %}
+      </a>
       <div class="nav-links">
         {% if authed %}
         <a href="/dashboard" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
@@ -35,7 +51,7 @@
 
   <footer class="footer">
     <div class="container footer-inner">
-      <span>Privacy-first · Local AI · <a href="https://github.com/jfodchuk/MatchForge" target="_blank" rel="noopener">GitHub</a>{% if app_domain is defined %} · {{ app_domain }}{% endif %}</span>
+      <span>Privacy-first · AI-powered · <a href="https://github.com/jfodchuk/MatchForge" target="_blank" rel="noopener">GitHub</a>{% if app_domain %} · {{ app_domain }}{% endif %}</span>
       <a href="/">Home</a>
     </div>
   </footer>

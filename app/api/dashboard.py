@@ -1,7 +1,6 @@
 """Dashboard and percolated shortlist endpoints."""
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import (
@@ -20,10 +19,10 @@ from app.services import (
     referral_service,
 )
 from app.utils.profile_labels import format_user_badge, match_profile_label
+from app.utils.templates import render
 from app.utils.trust_display import trust_card_context
 
 router = APIRouter(tags=["dashboard"])
-templates = Jinja2Templates(directory="templates")
 
 
 def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDashboard:
@@ -83,7 +82,7 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
         {"ranking": r, "trust": trust_card_context(r.profile, r)}
         for r in data.shortlist
     ]
-    return templates.TemplateResponse(
+    return render(
         request,
         "dashboard.html",
         {

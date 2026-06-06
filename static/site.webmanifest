@@ -1,0 +1,17 @@
+{
+  "name": "MatchForge",
+  "short_name": "MatchForge",
+  "description": "Privacy-first AI dating intelligence",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#7c6cf0",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
