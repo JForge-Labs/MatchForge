@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MatchForge{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="nav-brand">MatchForge</a>
+      <div class="nav-links">
+        {% if authed %}
+        <a href="/dashboard" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="/onboarding" class="{% if active == 'settings' %}active{% endif %}">Settings</a>
+        <a href="/logout" class="nav-muted">Sign out</a>
+        {% else %}
+        <a href="/login" class="btn btn-nav">Sign in</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  {% block header %}{% endblock %}
+
+  <main class="{% block main_class %}container{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Privacy-first · Local AI · <a href="https://github.com/jfodchuk/MatchForge" target="_blank" rel="noopener">GitHub</a>{% if app_domain is defined %} · {{ app_domain }}{% endif %}</span>
+      <a href="/">Home</a>
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

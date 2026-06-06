@@ -1,9 +1,10 @@
 """Screenshot upload and toolbox endpoints."""
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.auth import require_auth
 from app.core.db import get_db
 from app.models.profile import Profile, Ranking
 from app.schemas.profile import TrustScoresOut, UploadResult
@@ -15,10 +16,12 @@ router = APIRouter(prefix="/toolbox", tags=["toolbox"])
 
 @router.post("/upload-screenshots", response_model=UploadResult)
 async def upload_screenshots(
+    request: Request,
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
 ):
     """Accept screenshots; extract, trust-analyze, rank, persist."""
+    require_auth(request)
     user = onboarding_service.get_or_create_user(db)
     if not user.onboarding_complete:
         raise HTTPException(

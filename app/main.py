@@ -8,8 +8,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
-from app.api import dashboard, health, onboarding, profiles, toolbox
+from app.api import auth, dashboard, health, onboarding, pages, profiles, toolbox
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -28,7 +29,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
 app.include_router(health.router)
+app.include_router(pages.router)
+app.include_router(auth.router)
 app.include_router(onboarding.router)
 app.include_router(toolbox.router)
 app.include_router(profiles.router)
@@ -37,14 +42,3 @@ app.include_router(dashboard.router)
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.get("/")
-def root():
-    return {
-        "name": settings.app_name,
-        "version": "0.1.0",
-        "docs": "/docs",
-        "dashboard": "/dashboard",
-        "onboarding": "/onboarding",
-    }

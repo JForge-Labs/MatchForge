@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}MatchForge — Local AI Dating Intelligence{% endblock %}
+{% block main_class %}landing-main{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Self-hosted · Screenshot-first{% if app_env == 'development' %} · Dev{% endif %}</p>
+  <h1>Rank matches with local AI.<br>Keep your data on your box.</h1>
+  <p class="hero-lead">
+    Drag in dating profile screenshots. MatchForge extracts, scores authenticity,
+    ranks against your preferences, and percolates the best to the top — powered by Ollama, not the cloud.
+  </p>
+  <div class="hero-cta">
+    {% if authed %}
+    <a href="/dashboard" class="btn primary">Open Dashboard</a>
+    <a href="/onboarding" class="btn">Profile Settings</a>
+    {% else %}
+    <a href="/login" class="btn primary">Sign in to start</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="features">
+  <article class="feature-card">
+    <h3>Screenshot upload</h3>
+    <p>Universal input for Tinder, Bumble, Hinge, and more. No brittle API connectors required.</p>
+  </article>
+  <article class="feature-card">
+    <h3>Trust scoring</h3>
+    <p>Authenticity, filter detection, catfish risk, and bot signals — with clear explanations.</p>
+  </article>
+  <article class="feature-card">
+    <h3>Personalized ranking</h3>
+    <p>Onboarding builds your preference vector. Every profile is scored for <em>you</em>.</p>
+  </article>
+  <article class="feature-card">
+    <h3>100% local</h3>
+    <p>Vision and reasoning run on Ollama. Your screenshots never leave your infrastructure.</p>
+  </article>
+</section>
+
+<section class="flow">
+  <h2>How it works</h2>
+  <ol class="flow-steps">
+    <li><strong>Sign in</strong> to your private instance</li>
+    <li><strong>Set up</strong> gender, intentions, and optional taste examples</li>
+    <li><strong>Upload</strong> profile screenshots</li>
+    <li><strong>Review</strong> the percolated shortlist with trust badges</li>
+  </ol>
+</section>
+{% endblock %}

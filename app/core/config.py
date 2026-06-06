@@ -9,7 +9,10 @@ class Settings(BaseSettings):
 
     app_name: str = "MatchForge"
     app_env: str = "development"
+    app_domain: str = "match-forge.com"
     secret_key: str = "dev-insecure-change-me"
+    auth_password: str = ""
+    app_url: str = "http://localhost:8000"
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000

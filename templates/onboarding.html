@@ -1,61 +1,55 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MatchForge — Onboarding</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-  <header class="header">
-    <div class="container">
-      <h1>MatchForge</h1>
-      <p class="tagline">Let's personalize your dating intelligence</p>
-    </div>
-  </header>
+{% extends "base.html" %}
+{% block title %}Settings — MatchForge{% endblock %}
 
-  <main class="container">
-    <section class="onboarding">
-      <h2>{% if user.onboarding_complete %}Update Your Profile{% else %}Your Profile{% endif %}</h2>
-      <p>Tell us who you are and what you're looking for. This builds your personalized preference vector that drives all ranking and percolation.</p>
-      {% if user.onboarding_complete %}<p><a href="/dashboard">← Back to dashboard</a></p>{% endif %}
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1>{% if user.onboarding_complete %}Profile Settings{% else %}Get Started{% endif %}</h1>
+    <p class="tagline">Build your personalized preference vector</p>
+  </div>
+</header>
+{% endblock %}
 
-      <form id="onboarding-form" enctype="multipart/form-data">
-        <fieldset>
-          <legend>Gender</legend>
-          <label><input type="radio" name="gender" value="male" required> Male</label>
-          <label><input type="radio" name="gender" value="female"> Female</label>
-          <label><input type="radio" name="gender" value="non_binary"> Non-binary</label>
-          <label><input type="radio" name="gender" value="prefer_not_to_say"> Prefer not to say</label>
-        </fieldset>
+{% block content %}
+<section class="onboarding">
+  <p>Tell us who you are and what you're looking for. This drives all ranking, percolation, and trust explanations.</p>
 
-        <fieldset>
-          <legend>Dating Intentions <small>(select all that apply)</small></legend>
-          <label><input type="checkbox" name="intentions" value="ltr"> Long-term relationship</label>
-          <label><input type="checkbox" name="intentions" value="marriage"> Marriage</label>
-          <label><input type="checkbox" name="intentions" value="casual"> Casual dating / Fun</label>
-          <label><input type="checkbox" name="intentions" value="hookups"> Short-term / Hookups</label>
-          <label><input type="checkbox" name="intentions" value="friendship"> Friendship</label>
-          <label><input type="checkbox" name="intentions" value="undecided"> Undecided</label>
-          <label><input type="checkbox" name="intentions" value="other" id="other-check"> Other</label>
-          <input type="text" id="other-note" name="other_intention_note" placeholder="Describe other intentions" class="hidden">
-        </fieldset>
+  <form id="onboarding-form" enctype="multipart/form-data">
+    <fieldset>
+      <legend>Gender</legend>
+      <label><input type="radio" name="gender" value="male" required> Male</label>
+      <label><input type="radio" name="gender" value="female"> Female</label>
+      <label><input type="radio" name="gender" value="non_binary"> Non-binary</label>
+      <label><input type="radio" name="gender" value="prefer_not_to_say"> Prefer not to say</label>
+    </fieldset>
 
-        <fieldset>
-          <legend>Liked Profile Examples <small>(optional)</small></legend>
-          <p class="hint">Upload screenshots of profiles you find appealing — AI infers your taste from them.</p>
-          <div id="example-drop" class="drop-zone small">
-            <input type="file" id="example-input" name="examples" multiple accept="image/*">
-            <p>Drop example screenshots or <span class="link">browse</span></p>
-          </div>
-        </fieldset>
+    <fieldset>
+      <legend>Dating intentions <small>(select all that apply)</small></legend>
+      <label><input type="checkbox" name="intentions" value="ltr"> Long-term relationship</label>
+      <label><input type="checkbox" name="intentions" value="marriage"> Marriage</label>
+      <label><input type="checkbox" name="intentions" value="casual"> Casual dating / Fun</label>
+      <label><input type="checkbox" name="intentions" value="hookups"> Short-term / Hookups</label>
+      <label><input type="checkbox" name="intentions" value="friendship"> Friendship</label>
+      <label><input type="checkbox" name="intentions" value="undecided"> Undecided</label>
+      <label><input type="checkbox" name="intentions" value="other" id="other-check"> Other</label>
+      <input type="text" id="other-note" name="other_intention_note" placeholder="Describe other intentions" class="hidden">
+    </fieldset>
 
-        <button type="submit" id="onboard-btn" class="btn primary">Build My Preference Vector</button>
-      </form>
-      <div id="onboard-status" class="status hidden"></div>
-    </section>
-  </main>
+    <fieldset>
+      <legend>Liked profile examples <small>(optional)</small></legend>
+      <p class="hint">Upload screenshots of profiles you find appealing — AI infers your taste from them.</p>
+      <div id="example-drop" class="drop-zone small">
+        <input type="file" id="example-input" name="examples" multiple accept="image/*">
+        <p>Drop example screenshots or <span class="link">browse</span></p>
+      </div>
+    </fieldset>
 
-  <script src="/static/onboarding.js"></script>
-</body>
-</html>
+    <button type="submit" id="onboard-btn" class="btn primary">Build My Preference Vector</button>
+  </form>
+  <div id="onboard-status" class="status hidden"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/onboarding.js"></script>
+{% endblock %}

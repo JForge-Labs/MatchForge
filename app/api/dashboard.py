@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.auth import is_authenticated, redirect_if_unauthenticated, require_auth
 from app.core.db import get_db
 from app.models.profile import Profile, Ranking
 from app.schemas.profile import PercolatedDashboard
@@ -13,9 +14,7 @@ router = APIRouter(tags=["dashboard"])
 templates = Jinja2Templates(directory="templates")
 
 
-@router.get("/dashboard/percolated", response_model=PercolatedDashboard)
-def percolated_shortlist(db: Session = Depends(get_db)):
-    """Return ranked shortlist sorted by percolation priority."""
+def _percolated_data(db: Session) -> PercolatedDashboard:
     user = onboarding_service.get_or_create_user(db)
     pref = onboarding_service.get_user_preference(db)
     rankings = (
@@ -38,14 +37,24 @@ def percolated_shortlist(db: Session = Depends(get_db)):
     )
 
 
+@router.get("/dashboard/percolated", response_model=PercolatedDashboard)
+def percolated_shortlist(request: Request, db: Session = Depends(get_db)):
+    """Return ranked shortlist sorted by percolation priority."""
+    require_auth(request)
+    return _percolated_data(db)
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_ui(request: Request, db: Session = Depends(get_db)):
     """HTML dashboard — redirects to onboarding if not complete."""
+    if redirect := redirect_if_unauthenticated(request):
+        return redirect
+
     user = onboarding_service.get_or_create_user(db)
     if not user.onboarding_complete:
         return RedirectResponse(url="/onboarding", status_code=302)
 
-    data = percolated_shortlist(db)
+    data = _percolated_data(db)
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -54,5 +63,7 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "shortlist": data.shortlist,
             "preference": data.preference_vector,
             "user": user,
+            "authed": is_authenticated(request),
+            "active": "dashboard",
         },
     )

@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.core.auth import is_authenticated, redirect_if_unauthenticated, require_auth
 from app.core.db import get_db
 from app.schemas.onboarding import OnboardingProfileOut, OnboardingStatus
 from app.services import onboarding_service
@@ -17,7 +18,8 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/status", response_model=OnboardingStatus)
-def onboarding_status(db: Session = Depends(get_db)):
+def onboarding_status(request: Request, db: Session = Depends(get_db)):
+    require_auth(request)
     user = onboarding_service.get_or_create_user(db)
     pref = onboarding_service.get_user_preference(db)
     return OnboardingStatus(
@@ -31,6 +33,7 @@ def onboarding_status(db: Session = Depends(get_db)):
 
 @router.post("/profile", response_model=OnboardingProfileOut)
 async def save_profile(
+    request: Request,
     gender: str = Form(...),
     intentions: str = Form(...),
     other_intention_note: str | None = Form(None),
@@ -38,6 +41,7 @@ async def save_profile(
     db: Session = Depends(get_db),
 ):
     """Save gender + intentions and generate personalized preference vector."""
+    require_auth(request)
     intent_list = json.loads(intentions) if intentions.startswith("[") else [
         i.strip() for i in intentions.split(",") if i.strip()
     ]
@@ -68,5 +72,12 @@ async def save_profile(
 
 @router.get("", response_class=HTMLResponse)
 def onboarding_ui(request: Request, db: Session = Depends(get_db)):
+    if redirect := redirect_if_unauthenticated(request):
+        return redirect
+
     user = onboarding_service.get_or_create_user(db)
-    return templates.TemplateResponse(request, "onboarding.html", {"user": user})
+    return templates.TemplateResponse(
+        request,
+        "onboarding.html",
+        {"user": user, "authed": is_authenticated(request), "active": "settings"},
+    )

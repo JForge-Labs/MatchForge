@@ -1,4 +1,4 @@
-# MatchForge base dependencies (Python 3.12)
+# Production dependencies (no Playwright — not used on App Platform)
 fastapi
 uvicorn[standard]
 sqlalchemy
@@ -6,13 +6,10 @@ psycopg2-binary
 pgvector
 pydantic
 pydantic-settings
-APScheduler
 python-dotenv
 python-multipart
 httpx
-playwright
 pillow
-ollama
 jinja2
 aiofiles
 itsdangerous

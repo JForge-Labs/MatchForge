@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sign in — MatchForge{% endblock %}
+
+{% block content %}
+<section class="auth-card">
+  <h1>Sign in</h1>
+  <p class="auth-sub">Access your private MatchForge instance.</p>
+
+  {% if error %}
+  <div class="status error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login" class="auth-form">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required autofocus autocomplete="current-password" placeholder="Enter your access password">
+    <button type="submit" class="btn primary full">Sign in</button>
+  </form>
+
+  <p class="auth-foot"><a href="/">← Back to home</a></p>
+</section>
+{% endblock %}
