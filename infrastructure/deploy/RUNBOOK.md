@@ -7,20 +7,29 @@
 - **Region:** `tor1`
 - **Domain:** `match-forge.com` (+ `www` alias)
 
-## Deploy / update
+## Deploy / update (DOCR — current)
+
+GitHub is not linked to DigitalOcean yet; prod deploys from **DO Container Registry**.
+
+```bash
+source ~/.grok/secrets/digitalocean.env
+cd /opt/matchforge
+docker build -t registry.digitalocean.com/matchforge/web:latest .
+doctl registry login
+docker push registry.digitalocean.com/matchforge/web:latest
+doctl apps create-deployment REDACTED-DO-PROD-APP-ID
+```
+
+Env-only update:
 
 ```bash
 source ~/.grok/secrets/digitalocean.env
 source ~/.grok/secrets/matchforge-prod.env
 /opt/matchforge/infrastructure/deploy/render-spec.sh /tmp/matchforge-deploy.yaml
-doctl apps update <APP_ID> --spec /tmp/matchforge-deploy.yaml
+doctl apps update REDACTED-DO-PROD-APP-ID --spec /tmp/matchforge-deploy.yaml
 ```
 
-First create:
-
-```bash
-doctl apps create --spec /tmp/matchforge-deploy.yaml
-```
+To switch to GitHub deploy later: link GitHub in DO console, revert `matchforge.app.yaml` to `github:` + `dockerfile_path`, push.
 
 ## Database init
 
