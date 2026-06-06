@@ -7,7 +7,11 @@ TEMPLATE="${ROOT}/infrastructure/deploy/matchforge.app.yaml"
 OUT="${1:-/tmp/matchforge-deploy.yaml}"
 
 source "${HOME}/.grok/secrets/matchforge-prod.env"
-[[ -f "${HOME}/.grok/secrets/digitalocean.env" ]] && source "${HOME}/.grok/secrets/digitalocean.env"
+if [[ -f "${HOME}/.grok/secrets/digitalocean.env" ]]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.grok/secrets/digitalocean.env"
+  export DIGITALOCEAN_ACCESS_TOKEN="${DIGITALOCEAN_ACCESS_TOKEN:-$DIGITALOCEAN_API_TOKEN}"
+fi
 
 sed \
   -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \

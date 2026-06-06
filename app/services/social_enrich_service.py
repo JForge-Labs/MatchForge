@@ -3,8 +3,6 @@ import logging
 import re
 from urllib.parse import quote_plus
 
-from playwright.async_api import async_playwright
-
 from app.core.config import get_settings
 from app.models.profile import Profile, SocialEnrichment
 
@@ -40,6 +38,8 @@ async def _search_platform(platform: str, query: str) -> dict:
     findings: dict = {"search_url": search_url, "snippets": [], "usernames": []}
 
     try:
+        from playwright.async_api import async_playwright
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page(
