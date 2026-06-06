@@ -96,8 +96,23 @@ if (uploadForm && fileInput) {
         /* non-JSON error body */
       }
       if (!resp.ok) throw new Error(parseErrorDetail(data) || `Upload failed (${resp.status})`);
-      showStatus(data.message || "Upload complete.", "ok");
-      setTimeout(() => window.location.reload(), 1500);
+      let statusMsg = data.message || "Upload complete.";
+      if (data.trust_breakdown?.length) {
+        const lines = data.trust_breakdown.map((t, i) => {
+          const auth = t.authenticity_score != null ? `${Math.round(t.authenticity_score)}% auth` : "";
+          const nat = t.naturalness_score != null ? `${Math.round(t.naturalness_score)}% natural` : "";
+          const cat = t.catfish_risk_score != null ? `${Math.round(t.catfish_risk_score)}% catfish` : "";
+          const bot = t.bot_risk_score != null ? `${Math.round(t.bot_risk_score)}% bot` : "";
+          const note = t.trust_explanation ? ` — ${t.trust_explanation}` : "";
+          return `#${i + 1}: ${[auth, nat, cat, bot].filter(Boolean).join(", ")}${note}`;
+        });
+        statusMsg += "\n" + lines.join("\n");
+      }
+      if (data.profiles_merged) {
+        statusMsg += `\n(${data.profiles_merged} existing profile(s) enriched — no duplicate tiles)`;
+      }
+      showStatus(statusMsg, "ok");
+      setTimeout(() => window.location.reload(), 2500);
     } catch (err) {
       showStatus(err.message, "error");
       uploadBtn.disabled = false;
@@ -110,6 +125,8 @@ function showStatus(msg, type) {
   if (!uploadStatus) return;
   uploadStatus.textContent = msg;
   uploadStatus.className = "status" + (type ? ` ${type}` : "");
+  uploadStatus.classList.remove("hidden");
+  uploadStatus.style.whiteSpace = "pre-wrap";
 }
 
 async function enrichProfile(profileId) {

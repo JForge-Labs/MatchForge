@@ -93,6 +93,7 @@ class RankingOut(BaseModel):
 
 class UploadResult(BaseModel):
     profiles_created: int
+    profiles_merged: int = 0
     profiles: list[ProfileOut]
     trust_breakdown: list[TrustScoresOut] = Field(default_factory=list)
     message: str
