@@ -28,6 +28,6 @@ Rotated automatically when DO DB credentials rotate. Re-render spec with compone
 
 | Item | Location |
 |------|----------|
-| DO App ID | `infrastructure/deploy/deployment-state.env` (local only) |
+| DO App ID | `a0817ef0-3412-4f03-858b-a89c987092ad` (also `~/.grok/secrets/matchforge-do-deployment.env`) |
 | Prod URL | https://match-forge.com |
 | Default hostname | DO App → Overview |
