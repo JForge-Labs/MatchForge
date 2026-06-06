@@ -1,9 +1,9 @@
 """Health / readiness endpoints."""
-import httpx
 from fastapi import APIRouter
 
 from app.core.config import get_settings
 from app.core import db
+from app.services import llm_service
 
 router = APIRouter(tags=["health"])
 settings = get_settings()
@@ -23,18 +23,15 @@ def health_db():
         return {"database": "error", "detail": str(exc)}
 
 
+@router.get("/health/llm")
+async def health_llm():
+    return await llm_service.health_check()
+
+
 @router.get("/health/ollama")
-async def health_ollama():
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{settings.ollama_base_url}/api/tags")
-            resp.raise_for_status()
-            models = [m["name"] for m in resp.json().get("models", [])]
-        return {
-            "ollama": "ok",
-            "models": models,
-            "vision_model": settings.vision_model,
-            "text_model": settings.text_model,
-        }
-    except Exception as exc:
-        return {"ollama": "error", "detail": str(exc)}
+async def health_ollama_legacy():
+    """Deprecated — use /health/llm."""
+    result = await llm_service.health_check()
+    if result.get("llm") == "ok":
+        return {"ollama": "deprecated", "use": "/health/llm", **result}
+    return {"ollama": "error", "use": "/health/llm", **result}

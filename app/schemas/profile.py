@@ -32,6 +32,9 @@ class TrustScoresOut(BaseModel):
     naturalness_score: float | None = None
     catfish_risk_score: float | None = None
     bot_risk_score: float | None = None
+    overall_trust_score: float | None = None
+    catfish_flag: str | None = None
+    catfish_flag_label: str | None = None
     trust_explanation: str | None = None
     trust_badge: str | None = None
     catfish_badge: str | None = None
@@ -98,7 +101,7 @@ class UploadResult(BaseModel):
 class EnrichRequest(BaseModel):
     profile_ids: list[int] = Field(default_factory=list)
     platforms: list[str] = Field(
-        default_factory=lambda: ["x", "instagram", "linkedin"]
+        default_factory=lambda: ["facebook", "instagram", "linkedin", "x"]
     )
 
 
@@ -120,3 +123,13 @@ class PercolatedDashboard(BaseModel):
     user_gender: str | None = None
     user_intentions: list[str] = Field(default_factory=list)
     onboarding_complete: bool = False
+
+
+class ShareOut(BaseModel):
+    ranking_id: int
+    profile_id: int
+    share_token: str
+    share_url: str
+    referral_url: str
+    text: str
+    title: str

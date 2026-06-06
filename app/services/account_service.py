@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.account import Account, AuthToken
 from app.models.user import UserProfile
-from app.services import email_service
+from app.services import credit_service, email_service, referral_service
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -68,7 +68,9 @@ def _send_token_email(account: Account, purpose: str, raw_token: str) -> None:
         )
 
 
-def request_signup(db: Session, email: str) -> tuple[str, str | None]:
+def request_signup(
+    db: Session, email: str, *, referral_code: str | None = None
+) -> tuple[str, str | None]:
     """Create or refresh a pending account and send verification email."""
     normalized = normalize_email(email)
     if not is_valid_email(normalized):
@@ -79,7 +81,11 @@ def request_signup(db: Session, email: str) -> tuple[str, str | None]:
         return "exists", None
 
     if not account:
-        account = Account(email=normalized)
+        referrer = referral_service.resolve_referrer(db, referral_code, normalized)
+        account = Account(
+            email=normalized,
+            referred_by_account_id=referrer.id if referrer else None,
+        )
         db.add(account)
         db.commit()
         db.refresh(account)
@@ -129,8 +135,12 @@ def verify_token(db: Session, raw_token: str, purpose: str) -> Account | None:
         return None
 
     row.used_at = now
-    if purpose == "signup_verify" and not account.email_verified_at:
+    first_verify = purpose == "signup_verify" and not account.email_verified_at
+    if first_verify:
         account.email_verified_at = now
+        credit_service.grant_signup_credits(db, account)
+        referral_service.ensure_referral_row(db, account)
+        referral_service.grant_referred_signup_bonus(db, account)
     db.commit()
     db.refresh(account)
     return account

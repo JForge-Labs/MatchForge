@@ -7,7 +7,7 @@
     <h1>Dashboard</h1>
     <p class="tagline">Screenshot-first dating intelligence · local &amp; private</p>
     {% if user_badge %}
-    <p class="user-badge">{{ user_badge }} · <a href="/onboarding">Edit profile</a></p>
+    <p class="user-badge">{{ user_badge }} · <a href="/onboarding">Edit profile</a>{% if token_balance is defined %} · <strong>{{ token_balance }}</strong> tokens{% if not billing_enabled %} <span class="free-iter">(free iteration)</span>{% endif %}{% endif %}</p>
     {% endif %}
   </div>
 </header>
@@ -16,16 +16,42 @@
 {% block content %}
 <section class="upload-section">
   <h2>Upload Screenshots</h2>
-  <p>Drag dating profile screenshots here or click to browse. Each image is analyzed locally via Ollama vision.</p>
+  <p>Drag dating or social profile screenshots here (Tinder, Bumble, Facebook, Instagram, etc.). Analysis uses Grok vision — ~12 tokens per profile upload.</p>
   <form id="upload-form" enctype="multipart/form-data">
     <div id="drop-zone" class="drop-zone">
       <input type="file" id="file-input" name="files" multiple accept="image/*">
-      <p>Drop screenshots here or <span class="link">browse</span></p>
+      <p class="drop-hint">Drop screenshots here or <span class="link">click to browse</span></p>
+      <p id="file-selected" class="file-selected hidden" aria-live="polite"></p>
     </div>
     <button type="submit" id="upload-btn" class="btn primary">Analyze &amp; Rank</button>
   </form>
   <div id="upload-status" class="status hidden"></div>
 </section>
+
+{% if referrals and referrals.referral_url %}
+<section class="referral-panel">
+  <h2>Refer friends, earn tokens</h2>
+  <p class="section-lead">
+    Share your link. When someone <strong>completes onboarding and uploads their first profile</strong>,
+    the referral locks in —
+    you earn <strong>{{ referrals.lock_in_reward_tokens }}</strong> tokens
+    {% if referrals.is_founder %}(founding member bonus included){% endif %}.
+    They get <strong>{{ referrals.referred_signup_bonus }}</strong> extra tokens at signup.
+  </p>
+  <div class="referral-row">
+    <input type="text" id="referral-url" readonly value="{{ referrals.referral_url }}" class="referral-input">
+    <button type="button" class="btn" onclick="copyReferralLink()">Copy link</button>
+  </div>
+  <p class="referral-stats">
+    <span>{{ referrals.pending_referrals }} pending</span>
+    <span>{{ referrals.locked_in_referrals }} locked in</span>
+    <span>{{ referrals.tokens_earned_from_referrals }} tokens earned</span>
+    {% if referrals.is_founder and referrals.founder_number %}
+    <span class="founder-badge">Founder #{{ referrals.founder_number }}</span>
+    {% endif %}
+  </p>
+</section>
+{% endif %}
 
 <section class="stats">
   <div class="stat-card">
@@ -41,65 +67,127 @@
 </section>
 
 <section class="shortlist">
-  <h2>Shortlist</h2>
-  <p class="section-lead">Ranked by match likelihood. Like, pass, and top picks reorder results as you log interactions.</p>
-  {% if shortlist %}
+  <div class="shortlist-header">
+    <div>
+      <h2>Shortlist</h2>
+      <p class="section-lead">Ranked by match likelihood. Trust vetting flags catfish risk; enrich top picks for deeper public checks.</p>
+    </div>
+    {% if cards %}
+    <button type="button" class="btn" id="vet-top-btn" onclick="vetTopCandidates()">Vet top 5</button>
+    {% endif %}
+  </div>
+
+  {% if cards %}
   <div class="cards">
-    {% for ranking in shortlist %}
-    <article class="card" data-ranking-id="{{ ranking.id }}">
+    {% for item in cards %}
+    {% set ranking = item.ranking %}
+    {% set t = item.trust %}
+    <article class="card card-{{ t.catfish_flag }}" data-ranking-id="{{ ranking.id }}">
       <div class="card-header">
-        <h3>{{ ranking.profile.name or ranking.profile.username or "Unknown" }}</h3>
-        <span class="score">{{ "%.0f"|format(ranking.overall_score) }}</span>
+        <div class="card-title-block">
+          <h3>{{ ranking.profile.name or ranking.profile.username or ("Profile #" ~ ranking.profile.id) }}</h3>
+          {% if ranking.profile.username %}
+          <span class="profile-handle">@{{ ranking.profile.username }}</span>
+          {% endif %}
+          <span class="vet-badge vet-{{ t.catfish_flag }}">{{ t.catfish_label }}</span>
+        </div>
+        <div class="card-scores">
+          <span class="trust-score" title="Overall trust score">{{ "%.0f"|format(t.overall_trust) }}</span>
+          <span class="score-label">trust</span>
+          <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
+          <span class="score-label">match</span>
+        </div>
       </div>
+
       <div class="card-meta">
         {% if ranking.profile.age %}<span>{{ ranking.profile.age }}</span>{% endif %}
         {% if ranking.profile.location %}<span>{{ ranking.profile.location }}</span>{% endif %}
         {% if ranking.profile.platform %}<span class="platform">{{ ranking.profile.platform }}</span>{% endif %}
-        <span class="enrich-status">{{ ranking.profile.enrichment_status }}</span>
+        {% if ranking.profile.extracted_data and ranking.profile.extracted_data.get('profile_url') %}
+        <a href="{{ ranking.profile.extracted_data.profile_url }}" target="_blank" rel="noopener" class="profile-link">source</a>
+        {% elif ranking.profile.username and ranking.profile.platform == 'facebook' %}
+        <a href="https://facebook.com/{{ ranking.profile.username }}" target="_blank" rel="noopener" class="profile-link">facebook</a>
+        {% endif %}
+        {% if ranking.profile.extracted_data and ranking.profile.extracted_data.get('parse_error') %}
+        <span class="enrich-status enrich-error" title="Vision model unreachable or parse failed">vision degraded</span>
+        {% endif %}
+        <span class="enrich-status enrich-{{ t.enrichment_status }}">{{ t.enrichment_status }}</span>
       </div>
+
       <div class="trust-badges">
-        {% set auth = ranking.authenticity_score or ranking.profile.authenticity_score %}
-        {% set catfish = ranking.catfish_risk_score or ranking.profile.catfish_risk_score %}
-        {% set bot = ranking.bot_risk_score or ranking.profile.bot_risk_score %}
-        {% set natural = ranking.naturalness_score or ranking.profile.naturalness_score %}
-        {% if auth is not none %}
-        <span class="badge {% if auth >= 70 %}badge-green{% elif auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
-          Authenticity {{ "%.0f"|format(auth) }}%
+        {% if t.catfish_risk is not none %}
+        <span class="badge {% if t.catfish_risk < 30 %}badge-green{% elif t.catfish_risk < 60 %}badge-yellow{% else %}badge-red{% endif %}">
+          Catfish risk {{ "%.0f"|format(t.catfish_risk) }}%
         </span>
         {% endif %}
-        {% if natural is not none %}
-        <span class="badge {% if natural >= 70 %}badge-green{% elif natural >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
-          Natural {{ "%.0f"|format(natural) }}%
+        {% if t.auth is not none %}
+        <span class="badge {% if t.auth >= 70 %}badge-green{% elif t.auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+          Authenticity {{ "%.0f"|format(t.auth) }}%
         </span>
         {% endif %}
-        {% if catfish is not none %}
-        <span class="badge {% if catfish < 30 %}badge-green{% elif catfish < 60 %}badge-yellow{% else %}badge-red{% endif %}">
-          Catfish {{ "%.0f"|format(catfish) }}%
+        {% if t.natural is not none %}
+        <span class="badge {% if t.natural >= 70 %}badge-green{% elif t.natural >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+          Natural {{ "%.0f"|format(t.natural) }}%
         </span>
         {% endif %}
-        {% if bot is not none %}
-        <span class="badge {% if bot < 30 %}badge-green{% elif bot < 60 %}badge-yellow{% else %}badge-red{% endif %}">
-          Bot {{ "%.0f"|format(bot) }}%
+        {% if t.bot is not none %}
+        <span class="badge {% if t.bot < 30 %}badge-green{% elif t.bot < 60 %}badge-yellow{% else %}badge-red{% endif %}">
+          Bot {{ "%.0f"|format(t.bot) }}%
         </span>
         {% endif %}
       </div>
+
+      {% if t.location_note %}
+      <p class="vetting-line {% if t.location_ok is sameas false %}vetting-warn{% elif t.location_ok %}vetting-ok{% endif %}">
+        <strong>Location:</strong> {{ t.location_note }}
+      </p>
+      {% endif %}
+
+      {% if t.risk_factors %}
+      <ul class="risk-factors">
+        {% for factor in t.risk_factors %}
+        <li>{{ factor }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
       {% if ranking.trust_explanation %}
       <p class="trust-warning">{{ ranking.trust_explanation }}</p>
       {% endif %}
+
       {% if ranking.profile.bio %}
       <p class="bio">{{ ranking.profile.bio[:200] }}{% if ranking.profile.bio|length > 200 %}…{% endif %}</p>
       {% endif %}
+
       {% if ranking.explanation %}
       <p class="explanation">{{ ranking.explanation }}</p>
       {% endif %}
+
+      {% if t.enrichments %}
+      <div class="enrichment-links">
+        <strong>Public footprint:</strong>
+        {% for e in t.enrichments %}
+        <span class="enrich-chip">
+          {{ e.platform }}
+          {% if e.url %}<a href="{{ e.url }}" target="_blank" rel="noopener">view</a>{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+      {% elif t.web_url %}
+      <p class="vetting-line"><a href="{{ t.web_url }}" target="_blank" rel="noopener">Web search results</a> ({{ t.web_status }})</p>
+      {% endif %}
+
       <div class="scores-row">
         <span>Compat: {{ "%.0f"|format(ranking.compatibility_score) }}</span>
         <span>Attraction: {{ "%.0f"|format(ranking.attractiveness_score) }}</span>
         <span class="red">Red flags: {{ "%.0f"|format(ranking.red_flag_score) }}</span>
-        {% if auth is not none %}<span>Trust: {{ "%.0f"|format(auth) }}%</span>{% endif %}
       </div>
+
       <div class="actions">
-        <button class="btn small" onclick="enrichProfile({{ ranking.profile.id }})">Enrich</button>
+        <button class="btn small share-btn" onclick="shareAnalysis({{ ranking.id }})">Share</button>
+        <button class="btn small" onclick="addNote({{ ranking.profile.id }})">Add note</button>
+        <button class="btn small" onclick="addMessageSnip({{ ranking.profile.id }})">Message snip</button>
+        <button class="btn small" onclick="enrichProfile({{ ranking.profile.id }})">Deep vet</button>
         <button class="btn small like" onclick="feedback({{ ranking.id }}, 'like')">Like</button>
         <button class="btn small dislike" onclick="feedback({{ ranking.id }}, 'dislike')">Pass</button>
         <button class="btn small super" onclick="feedback({{ ranking.id }}, 'superlike')">Top</button>

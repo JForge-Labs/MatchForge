@@ -3,10 +3,8 @@ import json
 import logging
 import re
 
-import httpx
-
 from app.core.config import get_settings
-from app.services import vision_service
+from app.services import llm_service, vetting_service, vision_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -154,7 +152,7 @@ async def analyze_profile_trust(
 
     trust_explanation = " ".join(explanations) or "No major trust concerns flagged."
 
-    return {
+    result = {
         "authenticity_score": authenticity,
         "naturalness_score": naturalness,
         "catfish_risk_score": catfish_risk,
@@ -172,6 +170,11 @@ async def analyze_profile_trust(
         "catfish_analysis": catfish,
         "risk_factors": catfish.get("risk_factors", []) + bot.get("signals", []),
     }
+    summary = vetting_service.compute_trust_summary(result)
+    result["overall_trust_score"] = summary["overall_trust_score"]
+    result["catfish_flag"] = summary["catfish_flag"]
+    result["catfish_flag_label"] = summary["catfish_flag_label"]
+    return result
 
 
 async def detect_bot_signals(
@@ -183,18 +186,10 @@ async def detect_bot_signals(
     )
     prompt = BOT_DETECTION_PROMPT.format(bio_and_metadata=payload_text)
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/generate",
-                json={
-                    "model": settings.text_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "format": "json",
-                },
-            )
-            resp.raise_for_status()
-            return _parse_json_response(resp.json().get("response", "{}"))
+        result, _usage = await llm_service.generate_json(
+            prompt, model=settings.xai_text_fast, timeout=120.0
+        )
+        return result
     except Exception as exc:
         logger.warning("Bot detection failed: %s", exc)
         return _fallback_bot_risk(bio)
@@ -239,18 +234,9 @@ async def assess_catfish_risk(
         social_findings=json.dumps(social_summary, indent=2),
     )
     try:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/generate",
-                json={
-                    "model": settings.text_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "format": "json",
-                },
-            )
-            resp.raise_for_status()
-            result = _parse_json_response(resp.json().get("response", "{}"))
+        result, _usage = await llm_service.generate_json(
+            prompt, model=settings.xai_text_reason, timeout=180.0
+        )
     except Exception as exc:
         logger.warning("Catfish synthesis failed: %s", exc)
         ai_max = max(p.get("ai_generated_likelihood", 0) for p in photo_analyses)
@@ -284,10 +270,12 @@ async def assess_catfish_risk(
 
 
 def apply_social_trust_adjustment(
-    trust_analysis: dict, social_enrichments: list
+    trust_analysis: dict, social_enrichments: list, vetting: dict | None = None
 ) -> dict:
-    """Re-score trust after social enrichment completes."""
-    return trust_analysis
+    """Re-score trust after social enrichment and vetting complete."""
+    return vetting_service.merge_vetting_into_trust(
+        trust_analysis, vetting or trust_analysis.get("vetting", {})
+    )
 
 
 def compute_trust_adjusted_scores(

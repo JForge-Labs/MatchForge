@@ -35,10 +35,35 @@ class PreferenceVector(Base):
     rankings: Mapped[list["Ranking"]] = relationship(back_populates="preference_vector")
 
 
+class ProfileEvidence(Base):
+    __tablename__ = "profile_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    content_text: Mapped[str | None] = mapped_column(Text)
+    media_path: Mapped[str | None] = mapped_column(String(512))
+    extracted_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    tokens_charged: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    profile: Mapped["Profile"] = relationship(back_populates="evidence")
+
+
 class Profile(Base):
     __tablename__ = "profiles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str | None] = mapped_column(String(256))
     username: Mapped[str | None] = mapped_column(String(256))
     bio: Mapped[str | None] = mapped_column(Text)
@@ -71,6 +96,7 @@ class Profile(Base):
     social_enrichments: Mapped[list["SocialEnrichment"]] = relationship(
         back_populates="profile"
     )
+    evidence: Mapped[list["ProfileEvidence"]] = relationship(back_populates="profile")
 
 
 class Ranking(Base):

@@ -1,16 +1,45 @@
-"""Profile enrichment and feedback endpoints."""
+"""Profile enrichment, evidence, and feedback endpoints."""
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.auth import get_account_id, require_auth
 from app.core.db import get_db
 from app.models.profile import Profile, Ranking, SocialEnrichment
-from app.schemas.profile import EnrichRequest, EnrichResult, FeedbackRequest
-from app.services import ranking_service, social_enrich_service, trust_service
+from app.schemas.profile import EnrichRequest, EnrichResult, FeedbackRequest, ShareOut
+from app.services import (
+    credit_service,
+    evidence_service,
+    onboarding_service,
+    ranking_service,
+    share_service,
+    social_enrich_service,
+    trust_service,
+    vetting_service,
+)
+from app.services.model_router import route
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profiles", tags=["profiles"])
+
+
+def _owned_profile(db: Session, profile_id: int, account_id: int) -> Profile:
+    profile = db.query(Profile).filter(Profile.id == profile_id).first()
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+    if profile.account_id and profile.account_id != account_id:
+        raise HTTPException(403, "Not your profile")
+    return profile
 
 
 async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
@@ -29,6 +58,16 @@ async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
             db.add(e)
         db.flush()
 
+        vetting = await vetting_service.vet_profile(
+            name=profile.name,
+            bio=profile.bio,
+            location=profile.location,
+            extracted_data=profile.extracted_data,
+            trust_analysis=profile.trust_analysis,
+            social_enrichments=enrichments,
+            run_web_search=True,
+        )
+
         if profile.trust_analysis:
             photo_analyses = profile.trust_analysis.get("photo_analyses", [])
             catfish = await trust_service.assess_catfish_risk(
@@ -42,6 +81,10 @@ async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
             profile.authenticity_score = catfish.get("authenticity_score")
             trust_note = catfish.get("trust_explanation", "")
             profile.trust_analysis["trust_explanation"] = trust_note
+            profile.trust_analysis = trust_service.apply_social_trust_adjustment(
+                profile.trust_analysis, enrichments, vetting
+            )
+            trust_note = profile.trust_analysis.get("trust_explanation", trust_note)
 
             ranking = (
                 db.query(Ranking).filter(Ranking.profile_id == profile.id).first()
@@ -84,23 +127,62 @@ async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
         db.close()
 
 
+@router.post("/vet-top", response_model=list[EnrichResult])
+async def vet_top_candidates(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    limit: int = 5,
+):
+    """Queue deep vetting (social + web) for top shortlist candidates."""
+    require_auth(request)
+    account_id = get_account_id(request)
+    rankings = (
+        db.query(Ranking)
+        .join(Profile, Ranking.profile_id == Profile.id)
+        .filter(Profile.account_id == account_id)
+        .order_by(Ranking.percolation_priority.desc())
+        .limit(limit)
+        .all()
+    )
+    profile_ids = [r.profile_id for r in rankings]
+    body = EnrichRequest(profile_ids=profile_ids)
+    return await enrich_profiles(request, body, background_tasks, db)
+
+
 @router.post("/enrich", response_model=list[EnrichResult])
 async def enrich_profiles(
+    request: Request,
     body: EnrichRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """Queue public social enrichment for one or more profiles."""
+    """Queue public social + web enrichment for one or more profiles."""
+    require_auth(request)
+    account_id = get_account_id(request)
     if not body.profile_ids:
-        profiles = db.query(Profile).limit(10).all()
+        profiles = (
+            db.query(Profile).filter(Profile.account_id == account_id).limit(10).all()
+        )
     else:
-        profiles = db.query(Profile).filter(Profile.id.in_(body.profile_ids)).all()
+        profiles = (
+            db.query(Profile)
+            .filter(
+                Profile.id.in_(body.profile_ids),
+                Profile.account_id == account_id,
+            )
+            .all()
+        )
 
     if not profiles:
         raise HTTPException(404, "No profiles found")
 
+    cost = route("deep_vet").token_cost * len(profiles)
+    credit_service.ensure_can_afford(db, account_id, cost, activity="deep_vet")
+
     results = []
     for profile in profiles:
+        credit_service.charge_tokens(db, account_id, "deep_vet", metadata={"profile_id": profile.id})
         profile.enrichment_status = "queued"
         background_tasks.add_task(_run_enrichment, profile.id, body.platforms)
         results.append(
@@ -110,12 +192,107 @@ async def enrich_profiles(
     return results
 
 
+@router.post("/{profile_id}/evidence/note")
+async def add_profile_note(
+    request: Request,
+    profile_id: int,
+    note: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    require_auth(request)
+    account_id = get_account_id(request)
+    profile = _owned_profile(db, profile_id, account_id)
+    credit_service.charge_tokens(db, account_id, "user_note", metadata={"profile_id": profile_id})
+    cost = route("user_note").token_cost
+    await evidence_service.add_note(
+        db, profile, account_id, note.strip(), tokens_charged=cost
+    )
+    user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+    if pref:
+        credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
+        await evidence_service.refresh_ranking(
+            db,
+            profile,
+            pref,
+            user_gender=user.gender,
+            user_intentions=user.intentions,
+            ui_context=user.ui_context,
+        )
+    db.commit()
+    return {
+        "status": "ok",
+        "profile_id": profile_id,
+        "balance": credit_service.get_balance(db, account_id),
+    }
+
+
+@router.post("/{profile_id}/evidence/screenshot")
+async def add_message_screenshot(
+    request: Request,
+    profile_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    require_auth(request)
+    account_id = get_account_id(request)
+    profile = _owned_profile(db, profile_id, account_id)
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(400, "Empty file")
+    credit_service.charge_tokens(
+        db, account_id, "message_screenshot", metadata={"profile_id": profile_id}
+    )
+    cost = route("message_screenshot").token_cost
+    await evidence_service.add_message_screenshot(
+        db, profile, account_id, image_bytes, tokens_charged=cost
+    )
+    user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+    if pref:
+        credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
+        await evidence_service.refresh_ranking(
+            db,
+            profile,
+            pref,
+            user_gender=user.gender,
+            user_intentions=user.intentions,
+            ui_context=user.ui_context,
+        )
+    db.commit()
+    return {
+        "status": "ok",
+        "profile_id": profile_id,
+        "balance": credit_service.get_balance(db, account_id),
+    }
+
+
+@router.get("/rankings/{ranking_id}/share", response_model=ShareOut)
+def share_ranking_analysis(
+    request: Request, ranking_id: int, db: Session = Depends(get_db)
+):
+    """Build share text + public link; always includes the sharer's referral URL."""
+    require_auth(request)
+    account_id = get_account_id(request)
+    payload = share_service.build_share_payload(db, account_id, ranking_id)
+    if not payload:
+        raise HTTPException(404, "Ranking not found")
+    return payload
+
+
 @router.get("/{profile_id}")
-def get_profile(profile_id: int, db: Session = Depends(get_db)):
+def get_profile(
+    request: Request, profile_id: int, db: Session = Depends(get_db)
+):
+    require_auth(request)
+    account_id = get_account_id(request)
     profile = (
         db.query(Profile)
-        .options(joinedload(Profile.social_enrichments))
-        .filter(Profile.id == profile_id)
+        .options(
+            joinedload(Profile.social_enrichments),
+            joinedload(Profile.evidence),
+        )
+        .filter(Profile.id == profile_id, Profile.account_id == account_id)
         .first()
     )
     if not profile:
@@ -124,9 +301,21 @@ def get_profile(profile_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/feedback")
-def submit_feedback(body: FeedbackRequest, db: Session = Depends(get_db)):
+def submit_feedback(
+    request: Request, body: FeedbackRequest, db: Session = Depends(get_db)
+):
     """Record user feedback to refine future rankings."""
-    ranking = db.query(Ranking).filter(Ranking.id == body.ranking_id).first()
+    require_auth(request)
+    account_id = get_account_id(request)
+    ranking = (
+        db.query(Ranking)
+        .join(Profile, Ranking.profile_id == Profile.id)
+        .filter(
+            Ranking.id == body.ranking_id,
+            Profile.account_id == account_id,
+        )
+        .first()
+    )
     if not ranking:
         raise HTTPException(404, "Ranking not found")
 

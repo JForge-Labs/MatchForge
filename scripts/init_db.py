@@ -7,9 +7,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import text
 
+from app.core.config import get_settings
 from app.core.db import Base, SessionLocal, engine
+from app.services import credit_service
 from app.models.account import Account, AuthToken  # noqa: F401 — register tables
-from app.models.profile import PreferenceVector
+from app.models.credits import AccountCredit, CreditTransaction  # noqa: F401
+from app.models.profile import PreferenceVector, ProfileEvidence  # noqa: F401
+from app.models.referral import Referral  # noqa: F401
 from app.models.user import UserProfile
 
 DEFAULT_TRAITS = {
@@ -80,6 +84,20 @@ def main() -> None:
         )
         conn.commit()
 
+    v02_stmts = [
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_founder BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS founder_number INTEGER",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS referral_code VARCHAR(16)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS referred_by_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_accounts_referral_code ON accounts (referral_code)",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE",
+        "CREATE INDEX IF NOT EXISTS ix_profiles_account_id ON profiles (account_id)",
+    ]
+    with engine.connect() as conn:
+        for sql in v02_stmts:
+            conn.execute(text(sql))
+        conn.commit()
+
     db = SessionLocal()
     try:
         existing = db.query(PreferenceVector).filter(
@@ -111,6 +129,17 @@ def main() -> None:
             print(f"User profile exists — onboarding_complete={user.onboarding_complete}")
     finally:
         db.close()
+
+    settings = get_settings()
+    if settings.seed_min_tokens > 0:
+        db = SessionLocal()
+        try:
+            n = credit_service.seed_accounts_to_minimum(db, settings.seed_min_tokens)
+            db.commit()
+            if n:
+                print(f"Seeded {n} account(s) to {settings.seed_min_tokens} tokens")
+        finally:
+            db.close()
 
     print("Database initialized successfully.")
 

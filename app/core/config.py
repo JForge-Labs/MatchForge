@@ -31,12 +31,16 @@ class Settings(BaseSettings):
     )
     redis_url: str = "redis://localhost:6379/0"
 
-    # AI backends (local-first)
-    ollama_base_url: str = "http://localhost:11434"
-    lmstudio_base_url: str = "http://localhost:1234/v1"
-    embedding_model: str = "nomic-embed-text"
-    vision_model: str = "llava"
-    text_model: str = "llama3.2"
+    # xAI Grok (all environments)
+    xai_api_key: str = ""
+    xai_vision_model: str = "grok-4.3"
+    xai_text_fast: str = "grok-4.20-0309-non-reasoning"
+    xai_text_reason: str = "grok-4.20-0309-reasoning"
+
+    # Monetization — disable while iterating (no charges, no 402 walls)
+    billing_enabled: bool = False
+    signup_grant_tokens: int = 500
+    seed_min_tokens: int = 0  # tops up existing accounts on init (e.g. 500)
 
 
 @lru_cache
