@@ -16,6 +16,12 @@ fi
 sed \
   -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \
   -e "s|__AUTH_PASSWORD__|${AUTH_PASSWORD}|g" \
+  -e "s|__SMTP_HOST__|${SMTP_HOST}|g" \
+  -e "s|__SMTP_PORT__|${SMTP_PORT}|g" \
+  -e "s|__SMTP_USER__|${SMTP_USER}|g" \
+  -e "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" \
+  -e "s|__SMTP_FROM__|${SMTP_FROM}|g" \
+  -e "s|__SMTP_USE_TLS__|${SMTP_USE_TLS}|g" \
   "${TEMPLATE}" > "${OUT}"
 
 echo "Rendered: ${OUT}"

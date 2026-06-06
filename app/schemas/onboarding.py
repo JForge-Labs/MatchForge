@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 
 from app.schemas.profile import PreferenceVectorOut
 
-Gender = Literal["male", "female", "non_binary", "prefer_not_to_say"]
+Gender = Literal["male", "female"]
+PreferredGender = Literal["male", "female"]
 Intention = Literal[
     "ltr",
     "marriage",
@@ -21,6 +22,7 @@ Intention = Literal[
 class OnboardingStatus(BaseModel):
     onboarding_complete: bool
     gender: str | None = None
+    preferred_genders: list[str] = Field(default_factory=list)
     intentions: list[str] = Field(default_factory=list)
     has_preference_vector: bool = False
     preference_vector: PreferenceVectorOut | None = None
@@ -28,6 +30,7 @@ class OnboardingStatus(BaseModel):
 
 class OnboardingProfileIn(BaseModel):
     gender: Gender
+    preferred_genders: list[PreferredGender] = Field(..., min_length=1)
     intentions: list[Intention] = Field(..., min_length=1)
     other_intention_note: str | None = None
 

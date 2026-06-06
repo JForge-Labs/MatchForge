@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import text
 
 from app.core.db import Base, SessionLocal, engine
+from app.models.account import Account, AuthToken  # noqa: F401 — register tables
 from app.models.profile import PreferenceVector
 from app.models.user import UserProfile
 
@@ -40,6 +41,44 @@ def main() -> None:
         conn.commit()
 
     Base.metadata.create_all(bind=engine)
+
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE user_profiles "
+                "ADD COLUMN IF NOT EXISTS account_id INTEGER "
+                "REFERENCES accounts(id) ON DELETE CASCADE"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "ix_user_profiles_account_id ON user_profiles (account_id)"
+            )
+        )
+        conn.execute(text("CREATE SEQUENCE IF NOT EXISTS user_profiles_id_seq"))
+        conn.execute(
+            text(
+                "SELECT setval('user_profiles_id_seq', "
+                "COALESCE((SELECT MAX(id) FROM user_profiles), 1))"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE user_profiles "
+                "ALTER COLUMN id SET DEFAULT nextval('user_profiles_id_seq')"
+            )
+        )
+        conn.execute(
+            text("ALTER SEQUENCE user_profiles_id_seq OWNED BY user_profiles.id")
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE user_profiles "
+                "ADD COLUMN IF NOT EXISTS preferred_genders JSONB DEFAULT '[]'::jsonb"
+            )
+        )
+        conn.commit()
 
     db = SessionLocal()
     try:

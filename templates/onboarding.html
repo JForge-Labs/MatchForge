@@ -5,34 +5,41 @@
 <header class="page-header">
   <div class="container">
     <h1>{% if user.onboarding_complete %}Profile Settings{% else %}Get Started{% endif %}</h1>
-    <p class="tagline">Build your personalized preference vector</p>
+    <p class="tagline">Tell us about you and who you want to meet</p>
   </div>
 </header>
 {% endblock %}
 
 {% block content %}
 <section class="onboarding">
-  <p>Tell us who you are and what you're looking for. This drives all ranking, percolation, and trust explanations.</p>
+  <p class="onboarding-lead">Your gender, who you're interested in, and your goals shape how profiles are ranked on your shortlist.</p>
 
   <form id="onboarding-form" enctype="multipart/form-data">
     <fieldset>
-      <legend>Gender</legend>
+      <legend>Your gender</legend>
+      <p class="field-hint">This is <em>you</em> — not who you're looking for.</p>
       <label><input type="radio" name="gender" value="male" required> Male</label>
       <label><input type="radio" name="gender" value="female"> Female</label>
-      <label><input type="radio" name="gender" value="non_binary"> Non-binary</label>
-      <label><input type="radio" name="gender" value="prefer_not_to_say"> Prefer not to say</label>
     </fieldset>
 
     <fieldset>
-      <legend>Dating intentions <small>(select all that apply)</small></legend>
+      <legend>Interested in</legend>
+      <p class="field-hint">Which profile genders should appear in your results? Select one or both.</p>
+      <label><input type="checkbox" name="preferred_genders" value="female"> Women</label>
+      <label><input type="checkbox" name="preferred_genders" value="male"> Men</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Goals <small>(select all that apply)</small></legend>
+      <p class="field-hint">What you're hoping to find — drives ranking weights and red-flag lens.</p>
       <label><input type="checkbox" name="intentions" value="ltr"> Long-term relationship</label>
       <label><input type="checkbox" name="intentions" value="marriage"> Marriage</label>
-      <label><input type="checkbox" name="intentions" value="casual"> Casual dating / Fun</label>
+      <label><input type="checkbox" name="intentions" value="casual"> Casual dating</label>
       <label><input type="checkbox" name="intentions" value="hookups"> Short-term / Hookups</label>
       <label><input type="checkbox" name="intentions" value="friendship"> Friendship</label>
       <label><input type="checkbox" name="intentions" value="undecided"> Undecided</label>
       <label><input type="checkbox" name="intentions" value="other" id="other-check"> Other</label>
-      <input type="text" id="other-note" name="other_intention_note" placeholder="Describe other intentions" class="hidden">
+      <input type="text" id="other-note" name="other_intention_note" placeholder="Describe other goals" class="hidden">
     </fieldset>
 
     <fieldset>
@@ -44,7 +51,7 @@
       </div>
     </fieldset>
 
-    <button type="submit" id="onboard-btn" class="btn primary">Build My Preference Vector</button>
+    <button type="submit" id="onboard-btn" class="btn primary">Save profile &amp; build ranking</button>
   </form>
   <div id="onboard-status" class="status hidden"></div>
 </section>

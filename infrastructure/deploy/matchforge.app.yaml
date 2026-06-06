@@ -53,6 +53,25 @@ services:
         value: __AUTH_PASSWORD__
         scope: RUN_TIME
         type: SECRET
+      - key: SMTP_HOST
+        value: __SMTP_HOST__
+        scope: RUN_TIME
+      - key: SMTP_PORT
+        value: "__SMTP_PORT__"
+        scope: RUN_TIME
+      - key: SMTP_USER
+        value: __SMTP_USER__
+        scope: RUN_TIME
+      - key: SMTP_PASSWORD
+        value: __SMTP_PASSWORD__
+        scope: RUN_TIME
+        type: SECRET
+      - key: SMTP_FROM
+        value: __SMTP_FROM__
+        scope: RUN_TIME
+      - key: SMTP_USE_TLS
+        value: "__SMTP_USE_TLS__"
+        scope: RUN_TIME
 
 databases:
   - name: db
