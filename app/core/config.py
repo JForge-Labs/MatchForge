@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     min_topup_usd: int = 10
     default_topup_usd: int = 20
 
+    # Comma-separated admin emails for /admin dashboard
+    admin_emails: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,159 +1,50 @@
-"""Account signup, email verification, and magic-link login."""
-import hashlib
-import re
-import secrets
-from datetime import datetime, timedelta, timezone
+"""Account lifecycle: deletion and cleanup."""
+import logging
+import shutil
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.models.account import Account, AuthToken
+from app.models.account import Account
+from app.models.profile import Profile
 from app.models.user import UserProfile
-from app.services import credit_service, email_service, referral_service
-
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-TOKEN_TTL = {
-    "signup_verify": timedelta(hours=24),
-    "login_magic": timedelta(minutes=15),
-}
+logger = logging.getLogger(__name__)
 
 
-def normalize_email(email: str) -> str:
-    return email.strip().lower()
+def _unlink_upload(path_str: str | None) -> None:
+    if not path_str:
+        return
+    path = Path(path_str)
+    if path.is_file():
+        path.unlink(missing_ok=True)
 
 
-def is_valid_email(email: str) -> bool:
-    return bool(EMAIL_RE.match(normalize_email(email)))
+def _remove_account_upload_dir(account_id: int) -> None:
+    upload_dir = Path("data/uploads/users") / str(account_id)
+    if upload_dir.is_dir():
+        shutil.rmtree(upload_dir, ignore_errors=True)
 
 
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def build_auth_url(token: str, purpose: str) -> str:
-    settings = get_settings()
-    base = settings.app_url.rstrip("/")
-    return f"{base}/auth/verify?token={token}&purpose={purpose}"
-
-
-def _issue_token(db: Session, account: Account, purpose: str) -> str:
-    raw = secrets.token_urlsafe(32)
-    token = AuthToken(
-        account_id=account.id,
-        token_hash=_hash_token(raw),
-        purpose=purpose,
-        expires_at=datetime.now(timezone.utc) + TOKEN_TTL[purpose],
-    )
-    db.add(token)
-    db.commit()
-    return raw
-
-
-def _send_token_email(account: Account, purpose: str, raw_token: str) -> None:
-    link = build_auth_url(raw_token, purpose)
-    if purpose == "signup_verify":
-        email_service.send_auth_link(
-            to=account.email,
-            subject="Verify your MatchForge account",
-            action="Confirm your email to finish signing up",
-            link=link,
-        )
-    else:
-        email_service.send_auth_link(
-            to=account.email,
-            subject="Your MatchForge sign-in link",
-            action="Sign in to MatchForge",
-            link=link,
-        )
-
-
-def request_signup(
-    db: Session, email: str, *, referral_code: str | None = None
-) -> tuple[str, str | None]:
-    """Create or refresh a pending account and send verification email."""
-    normalized = normalize_email(email)
-    if not is_valid_email(normalized):
-        return "invalid", None
-
-    account = db.query(Account).filter(Account.email == normalized).first()
-    if account and account.email_verified_at:
-        return "exists", None
-
+def delete_account(db: Session, account_id: int) -> bool:
+    account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
-        referrer = referral_service.resolve_referrer(db, referral_code, normalized)
-        account = Account(
-            email=normalized,
-            referred_by_account_id=referrer.id if referrer else None,
-        )
-        db.add(account)
-        db.commit()
-        db.refresh(account)
+        return False
 
-    raw = _issue_token(db, account, "signup_verify")
-    _send_token_email(account, "signup_verify", raw)
-    return "sent", raw if not email_service.smtp_configured() else None
-
-
-def request_login_link(db: Session, email: str) -> tuple[str, str | None]:
-    """Send a magic sign-in link to a verified account."""
-    normalized = normalize_email(email)
-    if not is_valid_email(normalized):
-        return "invalid", None
-
-    account = db.query(Account).filter(Account.email == normalized).first()
-    if not account:
-        return "not_found", None
-    if not account.email_verified_at:
-        raw = _issue_token(db, account, "signup_verify")
-        _send_token_email(account, "signup_verify", raw)
-        return "unverified", raw if not email_service.smtp_configured() else None
-
-    raw = _issue_token(db, account, "login_magic")
-    _send_token_email(account, "login_magic", raw)
-    return "sent", raw if not email_service.smtp_configured() else None
-
-
-def verify_token(db: Session, raw_token: str, purpose: str) -> Account | None:
-    token_hash = _hash_token(raw_token)
-    now = datetime.now(timezone.utc)
-    row = (
-        db.query(AuthToken)
-        .filter(
-            AuthToken.token_hash == token_hash,
-            AuthToken.purpose == purpose,
-            AuthToken.used_at.is_(None),
-            AuthToken.expires_at > now,
-        )
-        .first()
+    user = (
+        db.query(UserProfile).filter(UserProfile.account_id == account_id).first()
     )
-    if not row:
-        return None
+    if user:
+        _unlink_upload(user.avatar_path)
+        _unlink_upload(user.selfie_path)
 
-    account = db.query(Account).filter(Account.id == row.account_id).first()
-    if not account:
-        return None
+    for profile in db.query(Profile).filter(Profile.account_id == account_id).all():
+        uploads = Path("data/uploads") / "profiles" / str(profile.id)
+        if uploads.is_dir():
+            shutil.rmtree(uploads, ignore_errors=True)
 
-    row.used_at = now
-    first_verify = purpose == "signup_verify" and not account.email_verified_at
-    if first_verify:
-        account.email_verified_at = now
-        credit_service.grant_signup_credits(db, account)
-        referral_service.ensure_referral_row(db, account)
-        referral_service.grant_referred_signup_bonus(db, account)
+    _remove_account_upload_dir(account_id)
+
+    db.delete(account)
     db.commit()
-    db.refresh(account)
-    return account
-
-
-def ensure_profile(db: Session, account: Account) -> UserProfile:
-    profile = (
-        db.query(UserProfile).filter(UserProfile.account_id == account.id).first()
-    )
-    if profile:
-        return profile
-    profile = UserProfile(account_id=account.id)
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return profile
+    logger.info("Deleted account id=%s email=%s", account_id, account.email)
+    return True

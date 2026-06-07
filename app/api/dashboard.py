@@ -131,4 +131,5 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "authed": is_authenticated(request),
             "active": "dashboard",
         },
+        db=db,
     )

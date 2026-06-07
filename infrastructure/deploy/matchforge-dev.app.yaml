@@ -116,6 +116,9 @@ services:
       - key: DEFAULT_TOPUP_USD
         value: "20"
         scope: RUN_TIME
+      - key: ADMIN_EMAILS
+        value: "john.fodchuk@gmail.com"
+        scope: RUN_TIME
 
 databases:
   - name: db

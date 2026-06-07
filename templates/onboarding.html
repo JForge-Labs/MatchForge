@@ -47,12 +47,8 @@
       <p class="field-hint">Helps calibrate compatibility scoring — all fields are optional and stay on your device.</p>
       <div class="profile-optional-grid">
         <label class="text-field">
-          Display name
-          <input type="text" id="display-name" name="display_name" placeholder="How you want to be referred to" maxlength="128">
-        </label>
-        <label class="text-field">
-          Handle
-          <input type="text" id="handle" name="handle" placeholder="@yourusername" maxlength="64">
+          Your name
+          <input type="text" id="display-name" name="display_name" placeholder="How you show up in MatchForge" maxlength="128">
         </label>
         <label class="text-field">
           Age
@@ -67,19 +63,12 @@
         Short bio
         <textarea id="bio" name="bio" rows="3" placeholder="A few lines about you, interests, or what you're looking for…" maxlength="500"></textarea>
       </label>
-      <div class="profile-media-row">
-        <label class="media-field">
-          Avatar
-          <input type="file" id="avatar-input" name="avatar" accept="image/*">
-          <img id="avatar-preview" class="media-preview hidden" alt="Avatar preview">
-        </label>
-        <label class="media-field">
-          Selfie
-          <input type="file" id="selfie-input" name="selfie" accept="image/*">
-          <img id="selfie-preview" class="media-preview hidden" alt="Selfie preview">
-          <span class="field-hint">Used to infer presentation style for better compatibility matching.</span>
-        </label>
-      </div>
+      <label class="media-field profile-photo-field">
+        Profile photo
+        <input type="file" id="avatar-input" name="avatar" accept="image/*">
+        <img id="avatar-preview" class="media-preview hidden" alt="Profile photo preview">
+        <span class="field-hint">Shown in your nav avatar and used to calibrate compatibility scoring.</span>
+      </label>
     </fieldset>
 
     <fieldset>
