@@ -1,9 +1,10 @@
 """User onboarding endpoints."""
 import json
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
@@ -30,6 +31,13 @@ def onboarding_status(request: Request, db: Session = Depends(get_db)):
     return OnboardingStatus(
         onboarding_complete=user.onboarding_complete,
         gender=user.gender,
+        display_name=user.display_name,
+        handle=user.handle,
+        age=user.age,
+        location=user.location,
+        bio=user.bio,
+        has_avatar=bool(user.avatar_path),
+        has_selfie=bool(user.selfie_path),
         preferred_genders=user.preferred_genders or [],
         intentions=user.intentions or [],
         has_preference_vector=pref is not None,
@@ -44,6 +52,13 @@ async def save_profile(
     preferred_genders: str = Form(...),
     intentions: str = Form(...),
     other_intention_note: str | None = Form(None),
+    display_name: str | None = Form(None),
+    handle: str | None = Form(None),
+    age: str | None = Form(None),
+    location: str | None = Form(None),
+    bio: str | None = Form(None),
+    avatar: UploadFile | None = File(None),
+    selfie: UploadFile | None = File(None),
     examples: list[UploadFile] | None = File(None),
     db: Session = Depends(get_db),
 ):
@@ -69,6 +84,22 @@ async def save_profile(
         if data:
             example_bytes.append(data)
 
+    parsed_age: int | None = None
+    if age and age.strip().isdigit():
+        parsed_age = int(age.strip())
+
+    avatar_bytes: bytes | None = None
+    if avatar:
+        avatar_bytes = await avatar.read()
+        if not avatar_bytes:
+            avatar_bytes = None
+
+    selfie_bytes: bytes | None = None
+    if selfie:
+        selfie_bytes = await selfie.read()
+        if not selfie_bytes:
+            selfie_bytes = None
+
     user = await onboarding_service.complete_onboarding(
         db,
         gender=gender,
@@ -77,6 +108,13 @@ async def save_profile(
         example_images=example_bytes or None,
         other_note=other_intention_note,
         account_id=account_id,
+        display_name=display_name,
+        handle=handle,
+        age=parsed_age,
+        location=location,
+        bio=bio,
+        avatar_bytes=avatar_bytes,
+        selfie_bytes=selfie_bytes,
     )
     pref = onboarding_service.get_user_preference(db, account_id=account_id)
     return OnboardingProfileOut(
@@ -88,6 +126,23 @@ async def save_profile(
         example_count=len(user.example_analyses or []),
         message="Profile saved — your match ranking profile is ready.",
     )
+
+
+@router.get("/media/{kind}")
+def user_media(kind: str, request: Request, db: Session = Depends(get_db)):
+    """Serve saved avatar/selfie for profile settings preview."""
+    require_auth(request)
+    if kind not in ("avatar", "selfie"):
+        raise HTTPException(404, "Not found")
+    account_id = get_account_id(request)
+    user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    path_str = user.avatar_path if kind == "avatar" else user.selfie_path
+    if not path_str:
+        raise HTTPException(404, "No image uploaded")
+    path = Path(path_str)
+    if not path.is_file():
+        raise HTTPException(404, "File missing")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @router.get("", response_class=HTMLResponse)

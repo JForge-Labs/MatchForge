@@ -269,6 +269,7 @@ async def add_profile_note(
             user_gender=user.gender,
             user_intentions=user.intentions,
             ui_context=user.ui_context,
+            user_profile=onboarding_service.user_profile_context(user),
         )
     db.commit()
     return {
@@ -309,6 +310,7 @@ async def add_message_screenshot(
             user_gender=user.gender,
             user_intentions=user.intentions,
             ui_context=user.ui_context,
+            user_profile=onboarding_service.user_profile_context(user),
         )
     db.commit()
     return {

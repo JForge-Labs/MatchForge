@@ -5,7 +5,7 @@
 <header class="page-header">
   <div class="container">
     <h1>Dashboard</h1>
-    <p class="tagline">Screenshot-first dating intelligence · trust-scored shortlist</p>
+    <p class="tagline">Private match intelligence — upload profiles, vet trust signals, and rank by compatibility tailored to your goals and taste.</p>
     {% if user_badge %}
     <p class="user-badge">{{ user_badge }} · <a href="/onboarding">Edit profile</a>{% if token_balance is defined %} · <strong>{{ token_balance }}</strong> tokens{% if not billing_enabled %} <span class="free-iter">(free iteration)</span>{% endif %}{% endif %}</p>
     {% endif %}
@@ -83,6 +83,36 @@
     {% set ranking = item.ranking %}
     {% set t = item.trust %}
     <article class="card card-{{ t.catfish_flag }}" data-ranking-id="{{ ranking.id }}" data-profile-id="{{ ranking.profile.id }}">
+      <div class="card-top-scores">
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Compatibility</span>
+            <span class="score-bar-value">{{ "%.0f"|format(ranking.compatibility_score) }}</span>
+          </div>
+          <div class="score-bar-track" role="presentation">
+            <div class="score-bar-fill score-bar-compat" style="width: {{ ranking.compatibility_score|int }}%"></div>
+          </div>
+        </div>
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Attractiveness</span>
+            <span class="score-bar-value">{{ "%.0f"|format(ranking.attractiveness_score) }}</span>
+          </div>
+          <div class="score-bar-track" role="presentation">
+            <div class="score-bar-fill score-bar-attract" style="width: {{ ranking.attractiveness_score|int }}%"></div>
+          </div>
+        </div>
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Red flags</span>
+            <span class="score-bar-value score-bar-value-warn">{{ "%.0f"|format(ranking.red_flag_score) }}</span>
+          </div>
+          <div class="score-bar-track" role="presentation">
+            <div class="score-bar-fill score-bar-red" style="width: {{ ranking.red_flag_score|int }}%"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="card-header">
         <div class="card-title-block">
           <h3>{{ ranking.profile.name or ranking.profile.username or ("Profile #" ~ ranking.profile.id) }}</h3>
@@ -186,10 +216,7 @@
       <p class="vetting-line"><a href="{{ t.web_url }}" target="_blank" rel="noopener">Web search results</a> ({{ t.web_status }})</p>
       {% endif %}
 
-      <div class="scores-row">
-        <span>Compat: {{ "%.0f"|format(ranking.compatibility_score) }}</span>
-        <span>Attraction: {{ "%.0f"|format(ranking.attractiveness_score) }}</span>
-        <span class="red">Red flags: {{ "%.0f"|format(ranking.red_flag_score) }}</span>
+      <div class="scores-row scores-row-footer">
         <span class="token-spent" title="Total tokens invested vetting this profile">
           {{ item.tokens_spent }} tokens spent
         </span>
@@ -197,20 +224,25 @@
 
       <div class="agent-panel" data-profile-id="{{ ranking.profile.id }}">
         <label class="agent-label" for="agent-prompt-{{ ranking.profile.id }}">Enrich with agent</label>
-        <textarea
-          id="agent-prompt-{{ ranking.profile.id }}"
-          class="agent-prompt"
-          rows="2"
-          placeholder="Add context, vouch they're real, paste observations, or ask for a deep vet… Attach profile screenshots from other platforms or chat snips below."
-        ></textarea>
+        <div class="agent-compose" data-profile-id="{{ ranking.profile.id }}">
+          <textarea
+            id="agent-prompt-{{ ranking.profile.id }}"
+            class="agent-prompt"
+            rows="3"
+            placeholder="Add context, vouch they're real, or ask for a deep vet… Paste, drag &amp; drop, or attach screenshots from other platforms or chat snips."
+          ></textarea>
+          <div id="agent-attachments-{{ ranking.profile.id }}" class="agent-attachments hidden"></div>
+          <p class="agent-compose-hint">Paste, drag &amp; drop, or attach images</p>
+        </div>
         <div class="agent-row">
           <input
             type="file"
             id="agent-files-{{ ranking.profile.id }}"
-            class="agent-files"
+            class="agent-files-input"
             accept="image/*"
             multiple
           >
+          <label class="btn small agent-attach-btn" for="agent-files-{{ ranking.profile.id }}">Attach images</label>
           <span class="agent-cost-hint">~{{ agent_est_min }}+ tokens · +{{ agent_image_cost }}/image</span>
           <button type="button" class="btn small primary" onclick="submitAgent({{ ranking.profile.id }})">Run agent</button>
         </div>

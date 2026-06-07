@@ -15,6 +15,7 @@ RANKING_PROMPT_TEMPLATE = """You are a personalized dating profile analyst for M
 USER IDENTITY:
 - Gender: {user_gender}
 - Dating intentions: {user_intentions}
+{user_profile_block}
 
 USER PREFERENCE VECTOR (generated from their onboarding + liked examples):
 {preferences}
@@ -105,9 +106,16 @@ async def rank_profile(
     user_intentions: list[str] | None = None,
     ui_context: dict | None = None,
     trust_data: dict | None = None,
+    user_profile: dict | None = None,
 ) -> dict:
     """Score a profile against a preference vector using local LLM."""
     traits = preference.traits or {}
+    profile_block = ""
+    if user_profile:
+        profile_block = (
+            "- Optional profile details: "
+            + json.dumps(user_profile, indent=2, ensure_ascii=False)
+        )
     profile_data = {
         "name": profile.name,
         "username": profile.username,
@@ -123,6 +131,7 @@ async def rank_profile(
         user_intentions=", ".join(
             user_intentions or traits.get("user_intentions", ["undecided"])
         ),
+        user_profile_block=profile_block,
         preferences=json.dumps(
             {"traits": preference.traits, "weights": preference.weights}, indent=2
         ),

@@ -129,6 +129,153 @@ function showStatus(msg, type) {
   uploadStatus.style.whiteSpace = "pre-wrap";
 }
 
+const agentFileStore = new Map();
+const agentPreviewUrls = new Map();
+
+function getAgentFiles(profileId) {
+  return agentFileStore.get(String(profileId)) || [];
+}
+
+function revokeAgentPreviews(profileId) {
+  const urls = agentPreviewUrls.get(String(profileId)) || [];
+  for (const url of urls) URL.revokeObjectURL(url);
+  agentPreviewUrls.set(String(profileId), []);
+}
+
+function syncAgentFileInput(profileId) {
+  const input = document.getElementById(`agent-files-${profileId}`);
+  if (!input) return;
+  const dt = new DataTransfer();
+  for (const file of getAgentFiles(profileId)) dt.items.add(file);
+  input.files = dt.files;
+}
+
+function renderAgentAttachments(profileId) {
+  const container = document.getElementById(`agent-attachments-${profileId}`);
+  if (!container) return;
+  revokeAgentPreviews(profileId);
+  const files = getAgentFiles(profileId);
+  container.innerHTML = "";
+  if (!files.length) {
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+  const urls = [];
+  files.forEach((file, index) => {
+    const chip = document.createElement("div");
+    chip.className = "agent-attachment-chip";
+    const img = document.createElement("img");
+    const url = URL.createObjectURL(file);
+    urls.push(url);
+    img.src = url;
+    img.alt = file.name || `Attachment ${index + 1}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "agent-attachment-remove";
+    remove.setAttribute("aria-label", "Remove image");
+    remove.textContent = "×";
+    remove.addEventListener("click", () => removeAgentFile(profileId, index));
+    chip.appendChild(img);
+    chip.appendChild(remove);
+    container.appendChild(chip);
+  });
+  agentPreviewUrls.set(String(profileId), urls);
+}
+
+function addAgentFiles(profileId, fileList) {
+  const images = [...fileList].filter((f) => f.type.startsWith("image/"));
+  if (!images.length) return false;
+  const key = String(profileId);
+  agentFileStore.set(key, [...getAgentFiles(profileId), ...images]);
+  syncAgentFileInput(profileId);
+  renderAgentAttachments(profileId);
+  return true;
+}
+
+function removeAgentFile(profileId, index) {
+  const key = String(profileId);
+  const files = [...getAgentFiles(profileId)];
+  files.splice(index, 1);
+  agentFileStore.set(key, files);
+  syncAgentFileInput(profileId);
+  renderAgentAttachments(profileId);
+}
+
+function extractImagesFromDataTransfer(dt) {
+  if (!dt) return [];
+  const files = [];
+  if (dt.files?.length) {
+    for (const file of dt.files) {
+      if (file.type.startsWith("image/")) files.push(file);
+    }
+  }
+  if (!files.length && dt.items) {
+    for (const item of dt.items) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+  }
+  return files;
+}
+
+function extractImagesFromClipboard(clipboardData) {
+  if (!clipboardData?.items) return [];
+  const files = [];
+  for (const item of clipboardData.items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) files.push(file);
+    }
+  }
+  return files;
+}
+
+function initAgentPanels() {
+  document.querySelectorAll(".agent-panel").forEach((panel) => {
+    const profileId = panel.dataset.profileId;
+    if (!profileId) return;
+
+    const compose = panel.querySelector(".agent-compose");
+    const textarea = panel.querySelector(".agent-prompt");
+    const fileInput = panel.querySelector(".agent-files-input");
+
+    fileInput?.addEventListener("change", () => {
+      if (fileInput.files?.length) addAgentFiles(profileId, fileInput.files);
+    });
+
+    textarea?.addEventListener("paste", (e) => {
+      const images = extractImagesFromClipboard(e.clipboardData);
+      if (!images.length) return;
+      e.preventDefault();
+      addAgentFiles(profileId, images);
+    });
+
+    if (compose) {
+      ["dragenter", "dragover"].forEach((evt) => {
+        compose.addEventListener(evt, (e) => {
+          e.preventDefault();
+          compose.classList.add("dragover");
+        });
+      });
+      ["dragleave", "drop"].forEach((evt) => {
+        compose.addEventListener(evt, (e) => {
+          e.preventDefault();
+          compose.classList.remove("dragover");
+        });
+      });
+      compose.addEventListener("drop", (e) => {
+        const images = extractImagesFromDataTransfer(e.dataTransfer);
+        if (images.length) addAgentFiles(profileId, images);
+      });
+    }
+  });
+}
+
+initAgentPanels();
+
 async function deleteProfile(profileId) {
   const card = document.querySelector(`[data-profile-id="${profileId}"]`);
   try {
@@ -156,19 +303,16 @@ async function deleteProfile(profileId) {
 
 async function submitAgent(profileId) {
   const promptEl = document.getElementById(`agent-prompt-${profileId}`);
-  const filesEl = document.getElementById(`agent-files-${profileId}`);
   const prompt = promptEl?.value?.trim() || "";
-  const files = filesEl?.files;
-  if (!prompt && (!files || !files.length)) {
+  const files = getAgentFiles(profileId);
+  if (!prompt && !files.length) {
     showStatus("Enter a prompt or attach images for the agent.", "error");
     return;
   }
 
   const body = new FormData();
   body.append("prompt", prompt);
-  if (files) {
-    for (const file of files) body.append("files", file);
-  }
+  for (const file of files) body.append("files", file);
 
   showStatus("Agent running…", "");
   try {
