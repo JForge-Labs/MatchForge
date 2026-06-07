@@ -4,49 +4,127 @@
 
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">Privacy-first · Screenshot-first · Trust scoring</p>
-  <h1>Rank matches with AI you control.<br>See who’s real before you swipe.</h1>
+  <div class="hero-glow" aria-hidden="true"></div>
+  <p class="eyebrow">Personal safety · Screenshot-first · Private shortlist</p>
+  <h1>See who's real<br>before you swipe.</h1>
   <p class="hero-lead">
-    Drag in dating profile screenshots. MatchForge extracts profiles, scores authenticity and catfish risk,
-    ranks against your goals, and surfaces your best matches on a percolated shortlist.
+    MatchForge is your private due-diligence layer for dating. Upload publicly visible profile screenshots —
+    AI scores authenticity, catfish risk, and compatibility against your goals, then surfaces your best matches on a ranked shortlist.
   </p>
   <div class="hero-cta">
     {% if authed %}
     <a href="/dashboard" class="btn primary">Open Dashboard</a>
     <a href="/onboarding" class="btn">Profile Settings</a>
     {% else %}
-    <a href="/signup" class="btn primary">Get started</a>
+    <a href="/signup" class="btn primary">Get started free</a>
     <a href="/login" class="btn">Sign in</a>
     {% endif %}
+  </div>
+  <p class="hero-note">Free signup tokens included · Pay only for what you analyze</p>
+</section>
+
+<section class="value-strip" aria-label="Product highlights">
+  <div class="value-item">
+    <span class="value-label">Input</span>
+    <span class="value-text">Any dating app screenshot</span>
+  </div>
+  <div class="value-item">
+    <span class="value-label">Output</span>
+    <span class="value-text">Ranked shortlist with trust badges</span>
+  </div>
+  <div class="value-item">
+    <span class="value-label">Privacy</span>
+    <span class="value-text">Your scores stay in your account</span>
   </div>
 </section>
 
 <section class="features">
   <article class="feature-card">
-    <h3>Screenshot upload</h3>
-    <p>Universal input for Tinder, Bumble, Hinge, and more. No brittle API connectors required.</p>
+    <span class="feature-icon" aria-hidden="true"></span>
+    <h3>Screenshot-first input</h3>
+    <p>Tinder, Bumble, Hinge, and more — universal input without brittle platform APIs. Drop a screenshot and go.</p>
   </article>
   <article class="feature-card">
+    <span class="feature-icon feature-icon-trust" aria-hidden="true"></span>
     <h3>Trust scoring</h3>
-    <p>Authenticity, filter detection, catfish risk, and bot signals — with clear explanations.</p>
+    <p>Authenticity, filter detection, catfish risk, and bot signals — each with clear explanations before you invest time.</p>
   </article>
   <article class="feature-card">
+    <span class="feature-icon feature-icon-rank" aria-hidden="true"></span>
     <h3>Personalized ranking</h3>
-    <p>Onboarding builds your preference vector. Every profile is scored for <em>you</em>.</p>
+    <p>Onboarding builds your preference vector. Every profile is scored for <em>you</em> — compatibility, attraction, and red flags.</p>
   </article>
   <article class="feature-card">
-    <h3>100% local</h3>
-    <p>Vision and reasoning run on Ollama. Your screenshots never leave your infrastructure.</p>
+    <span class="feature-icon feature-icon-privacy" aria-hidden="true"></span>
+    <h3>Privacy-first hosted</h3>
+    <p>Your data lives in your private account on our managed infrastructure. We don't sell your data or share your shortlist.</p>
   </article>
+</section>
+
+<section class="trust-grid">
+  <h2>Trust signals that sink bad matches</h2>
+  <p class="section-lead">Every profile is vetted before it reaches your shortlist. High-risk matches sink with clear reasons why.</p>
+  <div class="trust-pillars">
+    <article class="trust-pillar">
+      <span class="trust-pillar-score trust-up">↑</span>
+      <h3>Authenticity</h3>
+      <p>Real person vs AI-generated or stolen photos</p>
+    </article>
+    <article class="trust-pillar">
+      <span class="trust-pillar-score trust-up">↑</span>
+      <h3>Naturalness</h3>
+      <p>Minimal filters vs heavy FaceApp or beauty editing</p>
+    </article>
+    <article class="trust-pillar">
+      <span class="trust-pillar-score trust-down">↓</span>
+      <h3>Catfish risk</h3>
+      <p>AI faces, photo inconsistency, social mismatches</p>
+    </article>
+    <article class="trust-pillar">
+      <span class="trust-pillar-score trust-down">↓</span>
+      <h3>Bot risk</h3>
+      <p>Generic bios, templates, low-effort spam patterns</p>
+    </article>
+  </div>
 </section>
 
 <section class="flow">
   <h2>How it works</h2>
   <ol class="flow-steps">
-    <li><strong>Sign up</strong> with your email and confirm your account</li>
-    <li><strong>Set up</strong> your gender, who you're interested in, and your goals</li>
-    <li><strong>Upload</strong> profile screenshots</li>
-    <li><strong>Review</strong> your ranked shortlist with trust badges</li>
+    <li><strong>Sign up</strong> with your email — free tokens to get started</li>
+    <li><strong>Set up</strong> your gender, who you're interested in, and your dating goals</li>
+    <li><strong>Upload</strong> profile screenshots from any platform</li>
+    <li><strong>Review</strong> your ranked shortlist with trust badges and explanations</li>
   </ol>
+</section>
+
+<section class="privacy-callout">
+  <h2>Transparent about AI</h2>
+  <p>
+    MatchForge uses cloud vision models to analyze uploads you submit — currently <strong>xAI Grok</strong>.
+    Images are transmitted solely to perform analysis you requested. We do not use your uploads to train third-party models.
+  </p>
+  <p class="privacy-disclaimer">
+    Scores are probabilistic decision-support for your own safety — not a background check or ground truth about anyone.
+    Always verify matches yourself.
+  </p>
+  <div class="privacy-links">
+    <a href="/legal/privacy">Privacy policy</a>
+    <span aria-hidden="true">·</span>
+    <a href="/legal/terms">Terms of service</a>
+  </div>
+</section>
+
+<section class="landing-cta">
+  <h2>Ready to vet your next match?</h2>
+  <p class="section-lead">Join MatchForge and turn screenshot chaos into a ranked, trust-scored shortlist.</p>
+  <div class="hero-cta">
+    {% if authed %}
+    <a href="/dashboard" class="btn primary">Open Dashboard</a>
+    {% else %}
+    <a href="/signup" class="btn primary">Create free account</a>
+    <a href="/login" class="btn">Sign in</a>
+    {% endif %}
+  </div>
 </section>
 {% endblock %}
