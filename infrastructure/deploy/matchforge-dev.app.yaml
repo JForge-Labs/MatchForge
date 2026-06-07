@@ -119,6 +119,15 @@ services:
       - key: ADMIN_EMAILS
         value: "john.fodchuk@gmail.com"
         scope: RUN_TIME
+      - key: OVERLOAD_MODE
+        value: "false"
+        scope: RUN_TIME
+      - key: CAPACITY_MAX_CONCURRENT_UPLOADS
+        value: "2"
+        scope: RUN_TIME
+      - key: CAPACITY_RETRY_AFTER_SECONDS
+        value: "120"
+        scope: RUN_TIME
 
 databases:
   - name: db

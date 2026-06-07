@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import is_authenticated
 from app.core.db import get_db
-from app.services import share_service
+from app.services import capacity_service, share_service
 from app.utils.templates import render
 
 router = APIRouter(tags=["pages"])
@@ -33,6 +33,21 @@ def favicon_redirect():
 @router.get("/apple-touch-icon.png", include_in_schema=False)
 def apple_touch_icon():
     return RedirectResponse(url="/static/icons/apple-touch-icon.png", status_code=301)
+
+
+@router.get("/at-capacity", response_class=HTMLResponse)
+def at_capacity_page(request: Request):
+    detail = capacity_service.capacity_detail()
+    return render(
+        request,
+        "at_capacity.html",
+        {
+            "authed": is_authenticated(request),
+            "headline": detail["headline"],
+            "message": detail["message"],
+            "retry_after_seconds": detail["retry_after_seconds"],
+        },
+    )
 
 
 @router.get("/", response_class=HTMLResponse)

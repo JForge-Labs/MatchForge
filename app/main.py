@@ -6,9 +6,11 @@ Run (with venv active):
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+
+from app.core.capacity_handlers import capacity_aware_http_handler
 
 from app.api import (
     account,
@@ -42,6 +44,7 @@ app = FastAPI(
 )
 
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_exception_handler(HTTPException, capacity_aware_http_handler)
 
 app.include_router(health.router)
 app.include_router(account.router)

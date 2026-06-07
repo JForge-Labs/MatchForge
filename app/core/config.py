@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # Comma-separated admin emails for /admin dashboard
     admin_emails: str = ""
 
+    # Capacity / surge traffic (foundational — in-process until Redis queue ships)
+    overload_mode: bool = False  # manual kill-switch: set OVERLOAD_MODE=true on DO
+    capacity_max_concurrent_uploads: int = 1
+    capacity_retry_after_seconds: int = 120
+
 
 @lru_cache
 def get_settings() -> Settings:
