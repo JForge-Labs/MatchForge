@@ -17,8 +17,8 @@ REFERRAL_OG_DESCRIPTION = (
 
 SITE_OG_TITLE = "MatchForge — AI dating intelligence"
 SITE_OG_DESCRIPTION = (
-    "Privacy-first match intelligence — upload profiles, vet trust signals, "
-    "and rank by compatibility tailored to your goals."
+    "Personal safety due diligence for dating — upload screenshots, vet trust signals, "
+    "and get a private ranked shortlist tailored to your goals."
 )
 
 SHARE_EXPIRED_OG_TITLE = "This share has expired — MatchForge"
