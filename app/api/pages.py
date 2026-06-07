@@ -29,6 +29,11 @@ def favicon_redirect():
     return RedirectResponse(url="/static/favicon.svg", status_code=301)
 
 
+@router.get("/apple-touch-icon.png", include_in_schema=False)
+def apple_touch_icon():
+    return RedirectResponse(url="/static/icons/apple-touch-icon.png", status_code=301)
+
+
 @router.get("/", response_class=HTMLResponse)
 def landing(request: Request):
     return render(

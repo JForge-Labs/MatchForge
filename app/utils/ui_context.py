@@ -1,5 +1,13 @@
 """Shared branding and environment context for HTML templates."""
 from app.core.config import get_settings
+from app.utils.social_meta import (
+    REFERRAL_OG_DESCRIPTION,
+    REFERRAL_OG_TITLE,
+    SITE_OG_DESCRIPTION,
+    SITE_OG_TITLE,
+    icon_url,
+    og_image_url,
+)
 
 _ENV_UI = {
     "development": {
@@ -46,6 +54,13 @@ def ui_context(*, authed: bool | None = None, active: str | None = None, **extra
         "env_class": env["class"],
         "show_env_banner": env["show_banner"],
         "theme_color": env["theme_color"],
+        "og_image": og_image_url(),
+        "og_title": SITE_OG_TITLE,
+        "og_description": SITE_OG_DESCRIPTION,
+        "twitter_title": SITE_OG_TITLE,
+        "twitter_description": SITE_OG_DESCRIPTION,
+        "icon_192": icon_url(192),
+        "icon_512": icon_url(512),
         "authed": authed,
         "active": active,
         **extra,
