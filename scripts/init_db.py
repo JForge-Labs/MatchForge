@@ -84,6 +84,15 @@ def main() -> None:
         )
         conn.commit()
 
+    v04_stmts = [
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS policies_accepted_at TIMESTAMPTZ",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS policies_version VARCHAR(32)",
+    ]
+    with engine.connect() as conn:
+        for sql in v04_stmts:
+            conn.execute(text(sql))
+        conn.commit()
+
     v03_stmts = [
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS display_name VARCHAR(128)",
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS handle VARCHAR(64)",

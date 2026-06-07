@@ -26,6 +26,10 @@ class UserProfile(Base):
     selfie_analysis: Mapped[dict] = mapped_column(JSONB, default=dict)
     preferred_genders: Mapped[list] = mapped_column(JSONB, default=list)
     intentions: Mapped[list] = mapped_column(JSONB, default=list)
+    policies_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    policies_version: Mapped[str | None] = mapped_column(String(32))
     onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     preference_vector_id: Mapped[int | None] = mapped_column(
         ForeignKey("preference_vectors.id"), nullable=True

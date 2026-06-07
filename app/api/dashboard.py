@@ -18,6 +18,7 @@ from app.services import (
     profile_merge_service,
     referral_service,
 )
+from app.utils.legal import policies_accepted
 from app.utils.profile_labels import format_user_badge, match_profile_label
 from app.utils.profile_tokens import profile_tokens_spent
 from app.utils.templates import render
@@ -83,6 +84,8 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
 
     account_id = get_account_id(request)
     user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    if not policies_accepted(user):
+        return RedirectResponse(url="/legal/accept", status_code=302)
     if not user.onboarding_complete:
         return RedirectResponse(url="/onboarding", status_code=302)
 

@@ -10,6 +10,7 @@ from app.models.profile import Profile, Ranking
 from app.schemas.profile import TrustScoresOut, UploadResult
 from app.services import (
     credit_service,
+    legal_service,
     onboarding_service,
     profile_merge_service,
     ranking_service,
@@ -33,7 +34,11 @@ async def upload_screenshots(
     """Accept screenshots; extract, trust-analyze, rank, persist."""
     require_auth(request)
     account_id = get_account_id(request)
+    from app.utils.legal import policies_accepted
+
     user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    if not policies_accepted(user):
+        raise HTTPException(403, legal_service.require_policies_message())
     if not user.onboarding_complete:
         raise HTTPException(
             403,

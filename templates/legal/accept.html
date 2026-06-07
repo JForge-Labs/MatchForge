@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Accept Policies — MatchForge{% endblock %}
+
+{% block head %}
+{% include "legal/_document_styles.html" %}
+{% endblock %}
+
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1>Before you begin</h1>
+    <p class="tagline">MatchForge processes sensitive dating data — please review and accept our policies</p>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="legal-accept-card">
+  <p class="legal-accept-lead">
+    MatchForge analyzes screenshots and profile data you upload using AI-assisted tools.
+    Scores are probabilistic decision-support — not facts about any person.
+    You must agree before using the toolbox, uploading screenshots, or building your ranking profile.
+  </p>
+
+  {% if error %}
+  <div class="status error">{{ error }}</div>
+  {% endif %}
+
+  <p class="legal-accept-links">
+    Read the full documents:
+    <a href="/legal/terms" target="_blank" rel="noopener">Terms of Service</a>
+    ·
+    <a href="/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+    (version {{ policies_version }})
+  </p>
+
+  <form method="post" action="/legal/accept" id="accept-form">
+    <label>
+      <input type="checkbox" name="agree" value="yes" id="agree-check" required>
+      <span>
+        I have read and agree to the
+        <a href="/legal/terms" target="_blank" rel="noopener">Terms of Service</a>
+        and
+        <a href="/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+        I understand that AI trust and catfish detection is probabilistic, that I am responsible
+        for only uploading data I am authorized to analyze, and that MatchForge does not guarantee
+        dating outcomes or score accuracy.
+      </span>
+    </label>
+    <button type="submit" class="btn primary full" id="accept-btn">I Agree — Continue</button>
+  </form>
+</section>
+{% endblock %}

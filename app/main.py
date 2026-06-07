@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.api import auth, billing, dashboard, health, onboarding, pages, profiles, toolbox
+from app.api import auth, billing, dashboard, health, legal, onboarding, pages, profiles, toolbox
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -34,6 +34,7 @@ app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 app.include_router(health.router)
 app.include_router(billing.router)
 app.include_router(pages.router)
+app.include_router(legal.router)
 app.include_router(auth.router)
 app.include_router(onboarding.router)
 app.include_router(toolbox.router)

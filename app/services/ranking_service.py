@@ -6,6 +6,7 @@ import re
 from app.core.config import get_settings
 from app.models.profile import PreferenceVector, Profile, Ranking
 from app.services import llm_service
+from app.utils.legal import append_ai_disclaimer
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -89,7 +90,7 @@ def _fallback_scores(profile: Profile, pref: PreferenceVector) -> dict:
         "attractiveness_score": round(attractiveness, 1),
         "red_flag_score": round(red_flag, 1),
         "overall_score": round(overall, 1),
-        "explanation": (
+        "explanation": append_ai_disclaimer(
             f"Heuristic score: {green} green flags, {red} red flags detected. "
             "LLM ranking unavailable — using rule-based fallback."
         ),
@@ -143,6 +144,8 @@ async def rank_profile(
         result, _usage = await llm_service.generate_json(
             prompt, model=settings.xai_text_fast, timeout=600.0
         )
+        if result.get("explanation"):
+            result["explanation"] = append_ai_disclaimer(result["explanation"])
         return result
     except Exception as exc:
         logger.warning("LLM ranking failed for profile %s: %s", profile.id, exc)

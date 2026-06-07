@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
@@ -15,7 +15,8 @@ from app.core.auth import (
 )
 from app.core.db import get_db
 from app.schemas.onboarding import OnboardingProfileOut, OnboardingStatus
-from app.services import onboarding_service
+from app.services import legal_service, onboarding_service
+from app.utils.legal import policies_accepted
 from app.utils.templates import render
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ def onboarding_status(request: Request, db: Session = Depends(get_db)):
     user = onboarding_service.get_or_create_user(db, account_id=account_id)
     pref = onboarding_service.get_user_preference(db, account_id=account_id)
     return OnboardingStatus(
+        policies_accepted=policies_accepted(user),
+        policies_version=user.policies_version,
         onboarding_complete=user.onboarding_complete,
         gender=user.gender,
         display_name=user.display_name,
@@ -65,6 +68,9 @@ async def save_profile(
     """Save profile settings and generate personalized match ranking profile."""
     require_auth(request)
     account_id = get_account_id(request)
+    user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    if not policies_accepted(user):
+        raise HTTPException(403, legal_service.require_policies_message())
     if gender not in ("male", "female"):
         raise HTTPException(400, "Select male or female for your gender.")
     seeking_list = (
@@ -152,6 +158,8 @@ def onboarding_ui(request: Request, db: Session = Depends(get_db)):
 
     account_id = get_account_id(request)
     user = onboarding_service.get_or_create_user(db, account_id=account_id)
+    if not policies_accepted(user):
+        return RedirectResponse(url="/legal/accept", status_code=302)
     return render(
         request,
         "onboarding.html",

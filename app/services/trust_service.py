@@ -5,6 +5,7 @@ import re
 
 from app.core.config import get_settings
 from app.services import llm_service, vetting_service, vision_service
+from app.utils.legal import append_ai_disclaimer
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -186,7 +187,9 @@ async def analyze_profile_trust(
             explanations.append("Heavy beauty filters or editing detected")
             break
 
-    trust_explanation = " ".join(explanations) or "No major trust concerns flagged."
+    trust_explanation = append_ai_disclaimer(
+        " ".join(explanations) or "No major trust concerns flagged."
+    )
 
     result = {
         "authenticity_score": authenticity,
@@ -355,6 +358,6 @@ def compute_trust_adjusted_scores(
         "naturalness_score": natural,
         "catfish_risk_score": catfish,
         "bot_risk_score": bot,
-        "trust_explanation": trust_note,
-        "explanation": explanation.strip(),
+        "trust_explanation": append_ai_disclaimer(trust_note),
+        "explanation": append_ai_disclaimer(explanation.strip()),
     }

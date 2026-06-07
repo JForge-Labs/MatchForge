@@ -20,6 +20,8 @@ Intention = Literal[
 
 
 class OnboardingStatus(BaseModel):
+    policies_accepted: bool = False
+    policies_version: str | None = None
     onboarding_complete: bool
     gender: str | None = None
     display_name: str | None = None
