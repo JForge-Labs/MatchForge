@@ -39,8 +39,8 @@ class Settings(BaseSettings):
 
     # Monetization — disable while iterating (no charges, no 402 walls)
     billing_enabled: bool = False
-    signup_grant_tokens: int = 500
-    seed_min_tokens: int = 0  # tops up existing accounts on init (e.g. 500)
+    signup_grant_tokens: int = 100
+    seed_min_tokens: int = 0  # tops up existing accounts on init (0 = disabled)
 
     # Stripe — dynamic top-up (no fixed Price ID; amount set per checkout)
     stripe_secret_key: str = ""

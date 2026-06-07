@@ -89,10 +89,10 @@ services:
         value: "true"
         scope: RUN_TIME
       - key: SIGNUP_GRANT_TOKENS
-        value: "500"
+        value: "100"
         scope: RUN_TIME
       - key: SEED_MIN_TOKENS
-        value: "500"
+        value: "0"
         scope: RUN_TIME
       - key: STRIPE_SECRET_KEY
         value: __STRIPE_SECRET_KEY__

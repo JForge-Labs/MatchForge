@@ -88,6 +88,7 @@ def main() -> None:
     v04_stmts = [
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS policies_accepted_at TIMESTAMPTZ",
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS policies_version VARCHAR(32)",
+        "ALTER TABLE referrals ADD COLUMN IF NOT EXISTS first_topup_at TIMESTAMPTZ",
     ]
     with engine.connect() as conn:
         for sql in v04_stmts:

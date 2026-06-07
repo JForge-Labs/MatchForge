@@ -1,4 +1,4 @@
-"""Referral program: attribution, lock-in milestones, token rewards."""
+"""Referral program: attribution and token rewards on first paid top-up."""
 import logging
 from datetime import datetime, timezone
 
@@ -10,15 +10,16 @@ from app.models.account import Account
 from app.models.credits import CreditTransaction
 from app.models.referral import Referral
 from app.services import credit_service
+
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Referred user gets extra tokens when signing up via a valid link
 REFERRED_SIGNUP_BONUS = 25
-# Referrer reward when referral locks in (onboarding + first upload)
-REFERRAL_LOCK_REFERRER_TOKENS = 50
-# Founding members earn extra per locked-in referral
-REFERRAL_LOCK_FOUNDER_EXTRA = 25
+# Referrer reward when referred user completes their first paid token top-up
+REFERRAL_FIRST_TOPUP_REFERRER_TOKENS = 50
+# Founding members earn extra per converted referral
+REFERRAL_FIRST_TOPUP_FOUNDER_EXTRA = 25
 
 
 def build_referral_url(code: str) -> str:
@@ -91,10 +92,10 @@ def grant_referred_signup_bonus(db: Session, account: Account) -> int | None:
     )
 
 
-def _referrer_lock_payout(referrer: Account) -> int:
-    bonus = REFERRAL_LOCK_REFERRER_TOKENS
+def _referrer_first_topup_payout(referrer: Account) -> int:
+    bonus = REFERRAL_FIRST_TOPUP_REFERRER_TOKENS
     if referrer.is_founder:
-        bonus += REFERRAL_LOCK_FOUNDER_EXTRA
+        bonus += REFERRAL_FIRST_TOPUP_FOUNDER_EXTRA
     return bonus
 
 
@@ -108,7 +109,7 @@ def mark_onboarding_complete(db: Session, account_id: int) -> Referral | None:
         return ref
     ref.onboarding_complete_at = datetime.now(timezone.utc)
     db.flush()
-    return try_lock_referral(db, ref)
+    return ref
 
 
 def mark_first_upload(db: Session, account_id: int) -> Referral | None:
@@ -121,14 +122,28 @@ def mark_first_upload(db: Session, account_id: int) -> Referral | None:
         return ref
     ref.first_upload_at = datetime.now(timezone.utc)
     db.flush()
-    return try_lock_referral(db, ref)
+    return ref
 
 
-def try_lock_referral(db: Session, ref: Referral) -> Referral | None:
-    """Lock in and pay referrer when referred user completes onboarding + first upload."""
-    if ref.status == "locked_in":
+def mark_first_topup(db: Session, account_id: int) -> Referral | None:
+    """Pay referrer when referred user completes their first paid token top-up."""
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account or not account.referred_by_account_id:
+        return None
+
+    ref = ensure_referral_row(db, account)
+    if not ref or ref.first_topup_at or ref.status == "locked_in":
         return ref
-    if not ref.onboarding_complete_at or not ref.first_upload_at:
+
+    purchase_count = (
+        db.query(func.count(CreditTransaction.id))
+        .filter(
+            CreditTransaction.account_id == account_id,
+            CreditTransaction.reason == "stripe_purchase",
+        )
+        .scalar()
+    ) or 0
+    if purchase_count != 1:
         return ref
 
     referrer = (
@@ -137,16 +152,18 @@ def try_lock_referral(db: Session, ref: Referral) -> Referral | None:
     if not referrer:
         return ref
 
-    payout = _referrer_lock_payout(referrer)
+    payout = _referrer_first_topup_payout(referrer)
+    now = datetime.now(timezone.utc)
+    ref.first_topup_at = now
     ref.status = "locked_in"
-    ref.locked_in_at = datetime.now(timezone.utc)
+    ref.locked_in_at = now
     ref.referrer_tokens_awarded = payout
     credit_service.grant_tokens(
         db,
         referrer.id,
         payout,
-        "referral_locked",
-        note=f"Locked-in referral (account {ref.referred_account_id})",
+        "referral_first_topup",
+        note=f"Referral first top-up (account {ref.referred_account_id})",
         metadata={
             "referred_account_id": ref.referred_account_id,
             "is_founder_bonus": referrer.is_founder,
@@ -154,7 +171,7 @@ def try_lock_referral(db: Session, ref: Referral) -> Referral | None:
     )
     db.flush()
     logger.info(
-        "Referral locked: referrer=%s referred=%s tokens=%s",
+        "Referral first top-up: referrer=%s referred=%s tokens=%s",
         referrer.id,
         ref.referred_account_id,
         payout,
@@ -190,7 +207,7 @@ def get_referral_stats(db: Session, account_id: int) -> dict:
         .scalar()
     ) or 0
 
-    lock_reward = _referrer_lock_payout(account)
+    reward = _referrer_first_topup_payout(account)
     return {
         "referral_code": code,
         "referral_url": build_referral_url(code),
@@ -199,9 +216,7 @@ def get_referral_stats(db: Session, account_id: int) -> dict:
         "pending_referrals": pending,
         "locked_in_referrals": locked,
         "tokens_earned_from_referrals": int(earned),
-        "lock_in_reward_tokens": lock_reward,
+        "lock_in_reward_tokens": reward,
         "referred_signup_bonus": REFERRED_SIGNUP_BONUS,
-        "lock_in_requires": "onboarding + first profile upload",
+        "lock_in_requires": "friend's first token top-up",
     }
-
-
