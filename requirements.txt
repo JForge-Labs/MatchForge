@@ -16,3 +16,4 @@ ollama
 jinja2
 aiofiles
 itsdangerous
+stripe

@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     signup_grant_tokens: int = 500
     seed_min_tokens: int = 0  # tops up existing accounts on init (e.g. 500)
 
+    # Stripe — dynamic top-up (no fixed Price ID; amount set per checkout)
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_product_id: str = ""
+    tokens_per_usd: int = 20
+    min_topup_usd: int = 10
+    default_topup_usd: int = 20
+
 
 @lru_cache
 def get_settings() -> Settings:

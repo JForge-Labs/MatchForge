@@ -7,7 +7,7 @@
     <h1>Dashboard</h1>
     <p class="tagline">Private match intelligence — upload profiles, vet trust signals, and rank by compatibility tailored to your goals and taste.</p>
     {% if user_badge %}
-    <p class="user-badge">{{ user_badge }} · <a href="/onboarding">Edit profile</a>{% if token_balance is defined %} · <strong>{{ token_balance }}</strong> tokens{% if not billing_enabled %} <span class="free-iter">(free iteration)</span>{% endif %}{% endif %}</p>
+    <p class="user-badge">{{ user_badge }} · <a href="/onboarding">Edit profile</a>{% if token_balance is defined %} · <strong>{{ token_balance }}</strong> tokens{% if billing_enabled %} · <a href="/billing">Add tokens</a>{% else %} <span class="free-iter">(free iteration)</span>{% endif %}{% endif %}</p>
     {% endif %}
   </div>
 </header>
