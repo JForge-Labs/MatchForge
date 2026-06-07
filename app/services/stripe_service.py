@@ -28,6 +28,17 @@ def _client() -> None:
     stripe.api_key = settings.stripe_secret_key
 
 
+def _as_dict(obj) -> dict:
+    """Normalize Stripe SDK objects to plain dicts for webhook handlers."""
+    if obj is None:
+        return {}
+    if isinstance(obj, dict):
+        return obj
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+    return dict(obj)
+
+
 def dollars_to_tokens(amount_usd: int) -> int:
     return amount_usd * settings.tokens_per_usd
 
@@ -149,7 +160,7 @@ def handle_webhook(db: Session, payload: bytes, signature: str | None) -> dict:
         raise HTTPException(400, "Invalid webhook signature") from None
 
     etype = event["type"]
-    data = event["data"]["object"]
+    data = _as_dict(event["data"]["object"])
 
     if etype == "checkout.session.completed":
         _handle_checkout_completed(db, data)
@@ -159,6 +170,26 @@ def handle_webhook(db: Session, payload: bytes, signature: str | None) -> dict:
         logger.warning("Stripe payment failed: %s", data.get("id"))
 
     return {"received": True, "type": etype}
+
+
+def reconcile_checkout_session(
+    db: Session, session_id: str, account_id: int
+) -> int | None:
+    """Credit tokens from a completed Checkout session if webhook was missed."""
+    if not session_id or not session_id.startswith("cs_"):
+        return None
+    if purchase_already_credited(db, session_id):
+        return credit_service.get_balance(db, account_id)
+
+    _client()
+    session = stripe.checkout.Session.retrieve(session_id)
+    data = _as_dict(session)
+    meta = data.get("metadata") or {}
+    if str(meta.get("account_id")) != str(account_id):
+        logger.warning("Checkout session account mismatch for %s", session_id)
+        return None
+    _handle_checkout_completed(db, data)
+    return credit_service.get_balance(db, account_id)
 
 
 def _parse_metadata(meta: dict) -> tuple[int, int, int, str] | None:
