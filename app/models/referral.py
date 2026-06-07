@@ -24,6 +24,9 @@ class Referral(Base):
     first_upload_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    first_topup_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     locked_in_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
