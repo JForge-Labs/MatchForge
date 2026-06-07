@@ -21,6 +21,12 @@ SITE_OG_DESCRIPTION = (
     "and rank by compatibility tailored to your goals."
 )
 
+SHARE_EXPIRED_OG_TITLE = "This share has expired — MatchForge"
+SHARE_EXPIRED_OG_DESCRIPTION = (
+    "We value everyone's privacy. Shared profile breakdowns are time-limited. "
+    "Join MatchForge to vet dating profiles with AI."
+)
+
 
 def absolute_url(path: str) -> str:
     base = get_settings().app_url.rstrip("/")

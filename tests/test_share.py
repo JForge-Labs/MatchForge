@@ -1,13 +1,17 @@
 """Share payload includes referral link and signed token round-trip."""
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.share_service import (
+    SHARE_VIEW_TTL_SECONDS,
     build_share_url,
     create_share_token,
     format_share_text,
+    is_share_preview_bot,
+    is_share_view_expired,
     verify_share_token,
 )
 
@@ -47,7 +51,21 @@ def test_share_text_includes_referral():
     assert "AI trust vetting" in text
 
 
+def test_share_view_expiry_window():
+    recent = datetime.now(timezone.utc) - timedelta(seconds=SHARE_VIEW_TTL_SECONDS - 30)
+    stale = datetime.now(timezone.utc) - timedelta(seconds=SHARE_VIEW_TTL_SECONDS + 1)
+    assert is_share_view_expired(recent) is False
+    assert is_share_view_expired(stale) is True
+
+
+def test_share_preview_bot_detection():
+    assert is_share_preview_bot("facebookexternalhit/1.1") is True
+    assert is_share_preview_bot("Mozilla/5.0 Chrome/120.0.0.0") is False
+
+
 if __name__ == "__main__":
     test_share_token_roundtrip()
     test_share_text_includes_referral()
+    test_share_view_expiry_window()
+    test_share_preview_bot_detection()
     print("ok")

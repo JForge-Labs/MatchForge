@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Share expired — MatchForge{% endblock %}
+
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1>Share expired</h1>
+    <p class="tagline">Privacy-first profile sharing</p>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="share-expired-card">
+  <div class="share-expired-icon" aria-hidden="true">
+    <img src="/static/favicon.svg" alt="" width="48" height="48">
+  </div>
+  <h2>We value everyone's privacy</h2>
+  <p class="share-expired-lead">
+    This share has expired. Shared breakdowns are time-limited and removed when the
+    profile is deleted — we don't keep copies for strangers to browse later.
+  </p>
+  <p class="share-expired-cta-lead">
+    Want your own AI-vetted shortlist? Join MatchForge — upload dating screenshots,
+    score trust signals, and rank matches tailored to your goals.
+  </p>
+  <div class="share-expired-actions">
+    {% if referral_url %}
+    <a href="{{ referral_url }}" class="btn primary">Sign up with friend's link</a>
+    <a href="{{ signup_url }}" class="btn">Create your account</a>
+    {% else %}
+    <a href="{{ signup_url }}" class="btn primary">Get started free</a>
+    <a href="/login" class="btn">Sign in</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

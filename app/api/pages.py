@@ -1,5 +1,5 @@
 """Public pages: landing, home, and shared analysis views."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -14,12 +14,13 @@ router = APIRouter(tags=["pages"])
 @router.get("/share/{token}", response_class=HTMLResponse)
 def shared_analysis(request: Request, token: str, db: Session = Depends(get_db)):
     """Public, token-gated view of a shared analysis (includes referrer signup link)."""
-    data = share_service.load_public_share(db, token)
-    if not data:
-        raise HTTPException(404, "Share link expired or invalid")
+    kind, data = share_service.resolve_share_page(
+        db, token, user_agent=request.headers.get("user-agent")
+    )
+    template = "share.html" if kind == "active" else "share_expired.html"
     return render(
         request,
-        "share.html",
+        template,
         {"authed": is_authenticated(request), "active": None, **data},
     )
 
