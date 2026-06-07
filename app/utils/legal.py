@@ -3,11 +3,11 @@ from datetime import datetime
 
 from app.models.user import UserProfile
 
-POLICIES_VERSION = "2026-06-07"
+POLICIES_VERSION = "2026-06-08"
 
 AI_DISCLAIMER = (
-    "Catfish and authenticity detection is probabilistic — always verify yourself. "
-    "MatchForge provides decision-support only, not ground truth about any person."
+    "Personal safety due diligence only — AI authenticity and catfish signals are probabilistic; "
+    "always verify yourself before meeting anyone. Not a background check or ground truth."
 )
 
 

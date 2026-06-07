@@ -1,78 +1,106 @@
 # MatchForge Terms of Service
 
-**Version:** 2026-06-07  
-**Effective:** June 7, 2026
+**Version:** 2026-06-08  
+**Effective:** June 8, 2026
 
 Welcome to MatchForge. By creating an account or using the service, you agree to these Terms.
 
-## 1. What MatchForge Is
+## 1. What MatchForge Is — Personal Safety & Due Diligence
 
-MatchForge is a **privacy-first dating intelligence toolbox**. It helps **you** analyze dating or social profile screenshots you choose to upload, score trust signals, and rank matches against your stated goals.
+MatchForge is a **personal safety and basic due diligence tool** for adults making informed decisions about people they may meet through dating or social platforms.
 
-MatchForge is **decision-support software** — not a dating service, matchmaking guarantee, or background-check provider.
+You upload **screenshots of publicly visible dating profiles** — the same information any user with an account on that platform could ordinarily see. MatchForge performs AI-assisted analysis for **authenticity, compatibility, and safety signals** to help **you** decide whether someone warrants further attention or caution.
 
-## 2. Self-Hosted and Hosted Deployments
+MatchForge is **decision-support software**. It is **not**:
 
-- **Self-hosted:** You run MatchForge on your own server or container. Your data stays in your infrastructure unless you configure external AI services.
-- **Hosted (e.g. match-forge.com):** We operate the application and database for your account. AI vision and ranking may use configured cloud models (such as xAI Grok). We do not sell your data.
+- A dating service or matchmaking guarantee
+- A consumer reporting agency or licensed background-check provider
+- A source of ground truth about any person
+- Access to private databases, hidden profiles, or non-public information
 
-In all cases, **you** control what screenshots and notes you upload.
+We **do not** assume, infer, or retrieve information that is not public or that you have not chosen to upload.
 
-## 3. Your Responsibilities
+## 2. Your Input — Public and User-Shared Sources Only
+
+You may only upload content that comes from:
+
+- **Publicly visible** dating or social profile screens you can lawfully view
+- **Information shared with you directly** (e.g. chat screenshots someone sent you)
+- **Your own** optional profile details (bio, selfie, etc.)
+
+You represent that you have a **lawful personal reason** to analyze this material for your own safety and due diligence — not for harassment, surveillance, or commercial exploitation.
+
+## 3. Self-Hosted and Hosted Deployments
+
+- **Self-hosted:** You run MatchForge on your own infrastructure. Data stays under your control unless you configure external AI services.
+- **Hosted (e.g. match-forge.com):** We operate the app and database for your account. AI analysis may use configured cloud models (e.g. xAI Grok). We do not sell your data.
+
+In all deployments, **you** decide what to upload and when to delete it.
+
+## 4. Your Responsibilities
 
 You agree that you will:
 
-- Only upload screenshots or data you are **authorized** to access and analyze for personal decision-making
+- Use MatchForge only for **personal safety and due diligence** — not stalking, harassment, defamation, discrimination, or doxxing
 - Comply with applicable law and each platform's Terms of Service
-- Use MatchForge for **personal, non-harassing** decision-support — not to stalk, harass, defame, or discriminate against others
-- **Verify important conclusions yourself** — especially before meeting someone in person
+- **Verify important conclusions yourself** before meeting anyone — especially in person
+- Take reasonable steps to protect your own physical and emotional safety regardless of any score
 - Keep your account credentials secure
 
 You must **not**:
 
 - Scrape, mass-harvest, or resell profile data
-- Use MatchForge outputs to publicly rank, expose, or shame people without their consent
-- Upload illegal content or use the service for fraud or impersonation
-- Attempt to bypass security or access other users' data
+- Upload content you know to be non-public, stolen, or obtained without authorization
+- Use outputs to publicly shame, rank, or expose people without their consent
+- Rely on MatchForge as a substitute for professional investigation or law enforcement
 
-## 4. AI Limitations (Important)
+## 5. AI Limitations — Read Carefully
 
-Match scores, catfish risk, authenticity, filter detection, and bot signals are **probabilistic estimates**, not facts. AI can be wrong. MatchForge:
+All scores and explanations — including catfish risk, authenticity, filter detection, bot signals, and compatibility — are **probabilistic estimates**. AI makes mistakes.
 
-- Does **not** guarantee accuracy of any score or explanation
-- Does **not** replace your own judgment, conversations, or in-person verification
-- May produce false positives and false negatives on catfish, filters, and bots
+MatchForge:
 
-**Always verify yourself before trusting any automated assessment.**
+- Does **not** guarantee accuracy of any assessment
+- May miss real risks (**false negatives**) or flag innocent profiles (**false positives**)
+- Does **not** replace your judgment, direct conversation, mutual friends, or common-sense safety practices
+- Cannot confirm identity, criminal history, relationship status, or intentions with certainty
 
-## 5. No Liability for Dating Outcomes
+**Catfish and authenticity detection is probabilistic — always verify yourself.**
+
+## 6. No Liability for Outcomes or Safety Incidents
 
 To the fullest extent permitted by law, MatchForge and its operators are **not liable** for:
 
-- Dating outcomes, relationships, meetings, or personal safety incidents
-- Decisions you make based on AI scores or explanations
-- Errors, omissions, or downtime in the service or third-party AI providers
-- Content uploaded by you or other users
+- Dating outcomes, meetings, relationships, or personal safety incidents
+- Harm arising from decisions you make based on AI outputs
+- Errors in analysis, service downtime, or third-party AI provider behavior
+- Content you or others upload
 
-The service is provided **"as is"** without warranties of any kind.
+The service is provided **"as is"** without warranties.
 
-## 6. Social Enrichment
+## 7. Public Social Enrichment
 
-Where enabled, MatchForge may look up **publicly available** information to supplement your analysis. You are responsible for ensuring your use complies with platform rules and local law.
+Where enabled, MatchForge may supplement your analysis with **publicly available** web or social information. We do not access private accounts, direct messages, paywalled records, or proprietary databases. You remain responsible for compliant use.
 
-## 7. Account Termination
+## 8. Data Retention and Deletion
 
-We may suspend or terminate accounts that violate these Terms. You may stop using the service at any time and request deletion of your account data as described in our Privacy Policy.
+You may **delete individual profile workups** at any time from the dashboard. Deletion removes associated screenshots, rankings, and analysis from your account.
 
-## 8. Changes
+You may request **account deletion** as described in our Privacy Policy. We do not require you to retain analyzed profiles after review — deleting data promptly is encouraged if you no longer need it.
 
-We may update these Terms. Material changes will be reflected in a new version number; continued use after notice may require re-acceptance.
+## 9. Account Termination
 
-## 9. Governing Law
+We may suspend accounts that violate these Terms. You may stop using MatchForge at any time.
 
-These Terms are governed by the laws of Canada. If you are a Canadian resident, you may have additional rights under **PIPEDA** and provincial privacy laws.
+## 10. Changes
 
-## 10. Contact
+Material changes will use a new policy version and may require re-acceptance.
+
+## 11. Governing Law & PIPEDA
+
+These Terms are governed by the laws of **Canada**. Canadian residents have privacy rights under **PIPEDA**; see our Privacy Policy for how we collect, use, and delete personal information with your consent.
+
+## 12. Contact
 
 Questions: the operator listed on your deployment's domain or GitHub repository.
 

@@ -9,14 +9,14 @@
 <header class="page-header">
   <div class="container">
     <h1>Terms of Service</h1>
-    <p class="tagline">Rules for using MatchForge responsibly</p>
+    <p class="tagline">Personal safety &amp; due diligence — rules for responsible use</p>
   </div>
 </header>
 {% endblock %}
 
 {% block content %}
 <article class="legal-doc">
-  <p class="legal-version">Version {{ policies_version }} · Effective June 7, 2026</p>
+  <p class="legal-version">Version {{ policies_version }} · Effective June 8, 2026</p>
   <nav class="legal-nav">
     <a href="/legal/privacy">Privacy Policy</a>
     {% if authed %}<a href="/legal/accept">Policy acceptance</a>{% endif %}
@@ -25,39 +25,38 @@
 
   <p>Welcome to MatchForge. By creating an account or using the service, you agree to these Terms.</p>
 
-  <h2>1. What MatchForge Is</h2>
-  <p>MatchForge is a <strong>privacy-first dating intelligence toolbox</strong>. It helps <em>you</em> analyze dating or social profile screenshots you choose to upload, score trust signals, and rank matches against your stated goals.</p>
-  <p>MatchForge is <strong>decision-support software</strong> — not a dating service, matchmaking guarantee, or background-check provider.</p>
+  <h2>1. What MatchForge Is — Personal Safety &amp; Due Diligence</h2>
+  <p>MatchForge is a <strong>personal safety and basic due diligence tool</strong> for adults making informed decisions about people they may meet through dating or social platforms.</p>
+  <p>You upload <strong>screenshots of publicly visible dating profiles</strong> — the same information any user with an account on that platform could ordinarily see. MatchForge performs AI-assisted analysis for <strong>authenticity, compatibility, and safety signals</strong>.</p>
+  <p>MatchForge is <strong>decision-support software</strong> — not a dating service, licensed background-check provider, or source of ground truth. We <strong>do not</strong> access private databases or assume non-public information.</p>
 
-  <h2>2. Self-Hosted and Hosted Deployments</h2>
+  <h2>2. Your Input — Public and User-Shared Sources Only</h2>
+  <p>You may only upload publicly visible profile screens, information shared with you directly, or your own optional profile details. You represent that you have a <strong>lawful personal reason</strong> to analyze this material for your own safety — not harassment or commercial exploitation.</p>
+
+  <h2>3. Self-Hosted and Hosted Deployments</h2>
   <ul>
-    <li><strong>Self-hosted:</strong> You run MatchForge on your own server or container. Your data stays in your infrastructure unless you configure external AI services.</li>
-    <li><strong>Hosted (e.g. match-forge.com):</strong> We operate the application and database for your account. AI vision and ranking may use configured cloud models (such as xAI Grok). We do not sell your data.</li>
+    <li><strong>Self-hosted:</strong> You control your infrastructure and data.</li>
+    <li><strong>Hosted:</strong> We operate your account environment; AI may use configured cloud models (e.g. xAI Grok). We do not sell your data.</li>
   </ul>
-  <p>In all cases, <strong>you</strong> control what screenshots and notes you upload.</p>
 
-  <h2>3. Your Responsibilities</h2>
-  <p>You agree that you will only upload data you are authorized to access, comply with applicable law and platform Terms of Service, use MatchForge for personal non-harassing decision-support, and verify important conclusions yourself.</p>
-  <p>You must <strong>not</strong> scrape or mass-harvest profile data, publicly shame people without consent, upload illegal content, or bypass security.</p>
+  <h2>4. Your Responsibilities</h2>
+  <p>Use MatchForge for <strong>personal safety and due diligence</strong> only. Comply with law and platform Terms of Service. <strong>Verify conclusions yourself</strong> before meeting anyone. Do not scrape, doxx, or publicly shame people based on scores.</p>
 
-  <h2>4. AI Limitations (Important)</h2>
-  <p>Match scores, catfish risk, authenticity, filter detection, and bot signals are <strong>probabilistic estimates</strong>, not facts. AI can be wrong. MatchForge does not guarantee accuracy and does not replace your own judgment.</p>
-  <p><strong>Always verify yourself before trusting any automated assessment.</strong></p>
+  <h2>5. AI Limitations — Read Carefully</h2>
+  <p>All scores are <strong>probabilistic estimates</strong>. AI can miss real risks or flag innocent profiles. MatchForge does not guarantee accuracy and does not replace your judgment or common-sense safety practices.</p>
+  <p><strong>Catfish and authenticity detection is probabilistic — always verify yourself.</strong></p>
 
-  <h2>5. No Liability for Dating Outcomes</h2>
-  <p>To the fullest extent permitted by law, MatchForge and its operators are not liable for dating outcomes, personal safety incidents, decisions based on AI scores, service errors, or third-party AI provider issues. The service is provided <strong>"as is"</strong>.</p>
+  <h2>6. No Liability for Outcomes or Safety Incidents</h2>
+  <p>To the fullest extent permitted by law, operators are not liable for dating outcomes, meetings, safety incidents, or decisions based on AI outputs. Service provided <strong>"as is"</strong>.</p>
 
-  <h2>6. Social Enrichment</h2>
-  <p>Where enabled, MatchForge may look up <strong>publicly available</strong> information. You are responsible for compliant use.</p>
+  <h2>7. Public Social Enrichment</h2>
+  <p>Where enabled, only <strong>publicly available</strong> information may supplement your analysis — never private DMs or proprietary databases.</p>
 
-  <h2>7. Account Termination</h2>
-  <p>We may suspend accounts that violate these Terms. You may stop using the service and request deletion per our Privacy Policy.</p>
+  <h2>8. Data Retention and Deletion</h2>
+  <p>Delete individual profile workups anytime from the dashboard. We encourage removing data when due diligence is complete. Account deletion is available per our Privacy Policy.</p>
 
-  <h2>8. Changes</h2>
-  <p>We may update these Terms. Material changes use a new version number and may require re-acceptance.</p>
-
-  <h2>9. Governing Law</h2>
-  <p>These Terms are governed by the laws of Canada. Canadian residents may have additional rights under <strong>PIPEDA</strong>.</p>
+  <h2>9. Changes, Governing Law &amp; PIPEDA</h2>
+  <p>Material changes use a new version number. Governed by the laws of <strong>Canada</strong>. Canadian residents have rights under <strong>PIPEDA</strong> — see our Privacy Policy.</p>
 
   <p><a href="/static/legal/terms.md">Download markdown version</a></p>
 </article>

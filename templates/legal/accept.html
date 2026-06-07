@@ -8,18 +8,36 @@
 {% block header %}
 <header class="page-header">
   <div class="container">
-    <h1>Before you begin</h1>
-    <p class="tagline">MatchForge processes sensitive dating data — please review and accept our policies</p>
+    <h1>Personal safety &amp; due diligence</h1>
+    <p class="tagline">Understand how MatchForge works before you continue</p>
   </div>
 </header>
 {% endblock %}
 
 {% block content %}
+<section class="legal-framing">
+  <h2>What MatchForge does</h2>
+  <p>
+    MatchForge is a <strong>personal safety and basic due diligence tool</strong>.
+    You upload screenshots of <strong>publicly visible dating profiles</strong> — the same
+    photos, bios, and prompts any user on that platform could normally see.
+    Our AI helps you spot authenticity concerns, compatibility signals, and basic safety red flags
+    <em>before</em> you invest more time or agree to meet someone.
+  </p>
+  <ul>
+    <li><strong>Public sources only</strong> — we do not access private databases, hidden accounts, or non-public records.</li>
+    <li><strong>Your private toolbox</strong> — analysis stays in your account unless you choose to share.</li>
+    <li><strong>AI is imperfect</strong> — scores are estimates, not facts. False positives and false negatives happen.</li>
+    <li><strong>You stay responsible</strong> — verify important details yourself; MatchForge is not a background check.</li>
+    <li><strong>Delete when done</strong> — remove profile workups from your dashboard anytime after review.</li>
+  </ul>
+</section>
+
 <section class="legal-accept-card">
   <p class="legal-accept-lead">
-    MatchForge analyzes screenshots and profile data you upload using AI-assisted tools.
-    Scores are probabilistic decision-support — not facts about any person.
-    You must agree before using the toolbox, uploading screenshots, or building your ranking profile.
+    To use MatchForge you must read and accept our Terms of Service and Privacy Policy.
+    By continuing, you consent to AI processing of images you upload and confirm you will only
+    submit publicly visible or lawfully shared content for your own personal safety decisions.
   </p>
 
   {% if error %}
@@ -42,9 +60,11 @@
         <a href="/legal/terms" target="_blank" rel="noopener">Terms of Service</a>
         and
         <a href="/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
-        I understand that AI trust and catfish detection is probabilistic, that I am responsible
-        for only uploading data I am authorized to analyze, and that MatchForge does not guarantee
-        dating outcomes or score accuracy.
+        I understand MatchForge is a personal safety and due diligence tool that analyzes
+        <strong>publicly visible or user-shared</strong> profile screenshots only;
+        that AI authenticity and catfish detection is <strong>probabilistic</strong>;
+        that I will verify important conclusions myself before meeting anyone;
+        and that I may delete uploaded profiles at any time.
       </span>
     </label>
     <button type="submit" class="btn primary full" id="accept-btn">I Agree — Continue</button>
