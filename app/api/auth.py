@@ -12,7 +12,7 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.services import account_service, email_service
+from app.services import account_service, capacity_service, email_service
 from app.services import onboarding_service
 from app.utils.legal import post_auth_path
 from app.utils.social_meta import REFERRAL_OG_DESCRIPTION, REFERRAL_OG_TITLE
@@ -70,6 +70,7 @@ def signup_submit(
     referral_code: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    capacity_service.raise_if_overloaded(signup=True)
     status, dev_token = account_service.request_signup(
         db, email, referral_code=referral_code or None
     )

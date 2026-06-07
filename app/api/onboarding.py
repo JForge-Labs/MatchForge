@@ -15,7 +15,7 @@ from app.core.auth import (
 )
 from app.core.db import get_db
 from app.schemas.onboarding import OnboardingProfileOut, OnboardingStatus
-from app.services import legal_service, onboarding_service
+from app.services import capacity_service, legal_service, onboarding_service
 from app.utils.legal import policies_accepted
 from app.utils.templates import render
 
@@ -96,20 +96,21 @@ async def save_profile(
         if not avatar_bytes:
             avatar_bytes = None
 
-    user = await onboarding_service.complete_onboarding(
-        db,
-        gender=gender,
-        intentions=intent_list,
-        preferred_genders=seeking_list,
-        example_images=example_bytes or None,
-        other_note=other_intention_note,
-        account_id=account_id,
-        display_name=display_name,
-        age=parsed_age,
-        location=location,
-        bio=bio,
-        avatar_bytes=avatar_bytes,
-    )
+    async with capacity_service.heavy_work_slot():
+        user = await onboarding_service.complete_onboarding(
+            db,
+            gender=gender,
+            intentions=intent_list,
+            preferred_genders=seeking_list,
+            example_images=example_bytes or None,
+            other_note=other_intention_note,
+            account_id=account_id,
+            display_name=display_name,
+            age=parsed_age,
+            location=location,
+            bio=bio,
+            avatar_bytes=avatar_bytes,
+        )
     pref = onboarding_service.get_user_preference(db, account_id=account_id)
     return OnboardingProfileOut(
         onboarding_complete=True,

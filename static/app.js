@@ -57,6 +57,9 @@ if (dropZone && fileInput) {
 function parseErrorDetail(data) {
   if (!data?.detail) return "Upload failed";
   if (typeof data.detail === "string") return data.detail;
+  if (typeof data.detail === "object" && data.detail.error === "capacity") {
+    return data.detail.message || "We're scaling up — please try again in a few minutes.";
+  }
   if (typeof data.detail === "object" && data.detail.error === "insufficient_tokens") {
     return `Need ${data.detail.required} tokens (balance: ${data.detail.balance}). Buy tokens coming soon.`;
   }
@@ -114,7 +117,8 @@ if (uploadForm && fileInput) {
       showStatus(statusMsg, "ok");
       setTimeout(() => window.location.reload(), 2500);
     } catch (err) {
-      showStatus(err.message, "error");
+      const isCapacity = String(err.message || "").includes("influx of new users");
+      showStatus(err.message, isCapacity ? "capacity" : "error");
       uploadBtn.disabled = false;
       uploadBtn.textContent = "Analyze & Rank";
     }

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Scaling up — MatchForge{% endblock %}
+{% block main_class %}capacity-main{% endblock %}
+
+{% block content %}
+<section class="capacity-card">
+  <p class="eyebrow">High demand</p>
+  <h1>{{ headline or "We're scaling up for you" }}</h1>
+  <p class="capacity-lead">
+    {{ message or "MatchForge is experiencing a large influx of new users right now. We're actively adding capacity — your screenshots and account are safe. Please try again in a few minutes." }}
+  </p>
+  {% if retry_after_seconds %}
+  <p class="capacity-hint">Typical wait: about {{ (retry_after_seconds // 60) or 1 }} minute{% if (retry_after_seconds // 60) != 1 %}s{% endif %}. No need to sign up again.</p>
+  {% endif %}
+  <div class="hero-cta">
+    <button type="button" class="btn primary" onclick="location.reload()">Try again</button>
+    {% if authed %}
+    <a href="/dashboard" class="btn">Back to dashboard</a>
+    {% else %}
+    <a href="/" class="btn">Home</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
