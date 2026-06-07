@@ -24,7 +24,7 @@ class GrantTokensIn(BaseModel):
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     if redirect := redirect_if_unauthenticated(request):
         return redirect
-    if not is_admin(request):
+    if not is_admin(request, db):
         return RedirectResponse("/dashboard", status_code=302)
 
     stats = admin_service.dashboard_stats(db)
@@ -46,19 +46,19 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/api/stats")
 def admin_stats_api(request: Request, db: Session = Depends(get_db)):
-    require_admin(request)
+    require_admin(request, db)
     return admin_service.dashboard_stats(db)
 
 
 @router.get("/api/accounts")
 def admin_accounts_api(request: Request, db: Session = Depends(get_db)):
-    require_admin(request)
+    require_admin(request, db)
     return {"accounts": admin_service.list_accounts(db)}
 
 
 @router.get("/api/transactions")
 def admin_transactions_api(request: Request, db: Session = Depends(get_db)):
-    require_admin(request)
+    require_admin(request, db)
     return {"transactions": admin_service.list_transactions(db)}
 
 
@@ -68,7 +68,7 @@ def admin_grant_tokens(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    require_admin(request)
+    require_admin(request, db)
     account = db.query(Account).filter(Account.id == body.account_id).first()
     if not account:
         raise HTTPException(404, "Account not found")
