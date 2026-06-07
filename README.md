@@ -232,7 +232,7 @@ Grok API calls are pay-per-use (~12 tokens per screenshot upload). Dev CT runs f
 
 ## Legal & Privacy
 
-MatchForge requires acceptance of our policies before using the toolbox.
+MatchForge is positioned as a **personal safety and basic due diligence tool**. Users upload screenshots of **publicly visible** dating profiles; the app performs AI analysis for authenticity, compatibility, and safety signals. We do not access private databases or non-public information.
 
 | Document | URL (when app is running) |
 |----------|---------------------------|
@@ -241,11 +241,9 @@ MatchForge requires acceptance of our policies before using the toolbox.
 | Policy acceptance | `/legal/accept` (after sign-in) |
 | Markdown sources | `static/legal/terms.md`, `static/legal/privacy.md` |
 
-**Policy version:** `2026-06-07` (stored on `UserProfile.policies_accepted_at` / `policies_version`)
+**Policy version:** `2026-06-08` (stored on `UserProfile.policies_accepted_at` / `policies_version`)
 
-Hosted users must accept Terms and Privacy before onboarding or screenshot uploads. AI outputs include a standard disclaimer that catfish/authenticity detection is probabilistic.
-
-Canadian users: see Privacy Policy for **PIPEDA** access, correction, and deletion rights.
+Users must accept Terms and Privacy before onboarding or uploads. Policies cover PIPEDA consent, public-source-only input, retention/deletion (including per-profile delete anytime), and AI limitation disclaimers on all trust/ranking outputs.
 
 ## Responsible Use
 

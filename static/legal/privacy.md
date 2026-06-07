@@ -1,94 +1,114 @@
 # MatchForge Privacy Policy
 
-**Version:** 2026-06-07  
-**Effective:** June 7, 2026
+**Version:** 2026-06-08  
+**Effective:** June 8, 2026
 
-MatchForge is built **privacy-first**. This policy explains what we collect, where it lives, and your rights.
+MatchForge helps you perform **personal safety and basic due diligence** on publicly visible dating profile information you choose to analyze. This policy explains what we collect, how we use it, and your rights — including under Canadian privacy law.
 
 ## 1. Our Privacy Principles
 
-- **Your data is yours** — we do not sell or rent personal information
-- **Local-first when self-hosted** — you control your server and database
-- **Minimal collection** — we only store what the toolbox needs to function
-- **Transparent AI processing** — you consent before images are analyzed
-- **Deletion rights** — you can remove your data
+- **Your data stays yours** — we do not sell or rent personal information
+- **Public-source framing** — we process screenshots and text **you** upload from publicly visible or user-shared sources; we do not access private databases
+- **Minimal collection** — only what the safety toolbox needs
+- **Explicit consent** — you agree to processing before analysis begins
+- **Deletion by default mindset** — remove profiles when you are done reviewing them
 
-## 2. What We Store
-
-Depending on how you use MatchForge, we may store:
+## 2. What We Process and Store
 
 | Data | Purpose |
 |------|---------|
 | Email address | Account sign-in and verification |
-| Profile settings | Gender, goals, optional bio, handle, avatar/selfie you provide |
-| Preference vector | Personalized ranking weights generated from your onboarding |
-| Screenshots you upload | Vision extraction, trust scoring, ranking |
-| Analysis results | Compatibility scores, trust badges, explanations, notes |
-| Evidence & agent inputs | Optional notes, chat snips, images you attach for vetting |
-| Referral codes | Attribution for token rewards |
-| Policy acceptance timestamp | Proof you agreed to Terms and this Privacy Policy |
+| Profile settings | Your goals, optional bio, handle, avatar/selfie |
+| Preference vector | Personalized compatibility weighting |
+| Screenshots you upload | AI extraction, authenticity/safety scoring, ranking |
+| Analysis results | Trust badges, compatibility scores, explanations |
+| Evidence & agent inputs | Optional notes and images you attach for vetting |
+| Policy acceptance | Timestamp and version proving your consent |
+| Referral codes | Token attribution only |
 
-We do **not** intentionally collect government ID, financial data, or precise geolocation unless you type it into optional profile fields.
+We do **not** intentionally collect government ID, credit information, or precise GPS location unless you voluntarily enter optional fields.
 
-## 3. Where Data Lives
+**We do not** buy, broker, or merge third-party private databases about the people in your screenshots.
 
-### Self-hosted deployment
-Data is stored in **your** PostgreSQL database and file storage on **your** server/container. Network calls to AI providers only occur if you configure API keys.
+## 3. Lawful Basis & Your Consent (PIPEDA)
 
-### Hosted deployment (match-forge.com)
-Data is stored in your account on our managed infrastructure (database and application storage). When AI features are enabled, **screenshots and text may be sent to configured AI providers** (currently xAI Grok) for analysis. We do not use your data to train third-party models.
+MatchForge processes personal information under **PIPEDA** (Canada) based on:
 
-## 4. AI Processing and Consent
+1. **Your explicit consent** — accepting this Policy and Terms, then uploading content for analysis
+2. **Reasonable expectations** — operating the account and safety tools you requested
+3. **Legitimate purposes** — securing the service, preventing abuse, and maintaining audit logs minimally necessary for operations
 
-When you upload screenshots, avatars, selfies, or example profiles, you **consent** to automated analysis including:
+You may **withdraw consent** by stopping use of the service and requesting deletion. Withdrawal does not affect processing that was lawful before withdrawal, but we will delete account data subject to legal retention limits.
 
-- Text and image extraction
-- Trust, authenticity, and catfish-risk scoring
-- Personalized compatibility ranking
+**Canadian rights under PIPEDA** include access, correction, deletion, and challenging our compliance. Contact the operator listed on your deployment to exercise these rights.
 
-You can stop uploading at any time. Deleting profiles or your account removes associated stored data from your instance.
+## 4. Where Data Lives
 
-## 5. Social Enrichment
+### Self-hosted
+Data resides in **your** PostgreSQL database and file storage. External AI calls occur only if you configure API keys.
 
-If enabled, MatchForge may retrieve **publicly available** web or social information to help vet profiles. We do not access private accounts, DMs, or paywalled content on your behalf.
+### Hosted (match-forge.com)
+Data resides in your account on our managed infrastructure. When AI is enabled, uploaded images and text may be transmitted to configured providers (currently **xAI Grok**) **solely to perform analysis you requested**. We do not use your uploads to train third-party models.
 
-## 6. What We Do Not Do
+## 5. AI Processing — What You Consent To
 
-- We do **not** sell your personal information
-- We do **not** share your screenshots with other users (unless **you** explicitly use the share feature)
-- We do **not** publish ranked lists of real people
-- We do **not** guarantee that cloud AI providers retain zero logs — review their policies if you use hosted AI
+When you upload screenshots, selfies, avatars, or examples, you **consent** to automated processing for:
 
-## 7. Your Rights (Including Canada / PIPEDA)
+- Text and image extraction from **your uploads only**
+- Authenticity, catfish-risk, and safety signal estimation
+- Compatibility ranking against **your** stated preferences
 
-If you are in Canada, you have rights under the **Personal Information Protection and Electronic Documents Act (PIPEDA)**, including:
+**Important:** AI outputs are probabilistic. They are **not** factual determinations about any person. You remain responsible for your own safety decisions.
 
-- **Access** — ask what personal information we hold about you
-- **Correction** — update inaccurate account or profile settings
-- **Deletion** — request removal of your account and associated data
-- **Withdraw consent** — stop using the service; deletion requests honored subject to legal retention limits
+## 6. Public Information Only
 
-To exercise these rights on a hosted deployment, contact the operator via the email on your account or the site footer. Self-hosted operators handle requests directly.
+MatchForge analyzes:
 
-## 8. Retention
+- Dating profile screenshots showing **publicly visible** fields (photos, bios, prompts visible to ordinary platform users)
+- Optional **public web enrichment** when enabled — never private DMs, locked profiles, or paid database lookups
 
-We retain data while your account is active and as needed to operate the service. You may delete individual profile workups from the dashboard. Account deletion removes your user profile, rankings, and uploads associated with your account.
+If content is not public and not shared with you, **do not upload it**.
+
+## 7. What We Do Not Do
+
+- Sell or rent personal information
+- Share your screenshots with other users (unless **you** use the share feature)
+- Publish ranked lists of identifiable people
+- Guarantee zero logging by cloud AI vendors — review their policies if using hosted AI
+
+## 8. Data Retention & Immediate Deletion
+
+**Default:** Data is kept while your account is active so you can review your shortlist.
+
+**Your controls:**
+
+- **Delete a profile workup anytime** — removes that person's screenshots, rankings, evidence, and analysis from your account promptly
+- **Stop uploading** — no new data is processed without a new upload
+- **Request account deletion** — removes your user profile, preference data, and associated uploads
+
+We encourage deleting profiles **as soon as you no longer need them** for due diligence. Hosted operators aim to honor deletion requests without undue delay.
+
+Backups, if any, are purged on a reasonable schedule after deletion — contact us for hosted deployments if you need confirmation.
 
 ## 9. Security
 
-We use industry-standard practices (HTTPS, hashed tokens, access controls). No system is perfectly secure — protect your credentials and self-hosted secrets.
+We use HTTPS, access controls, and hashed authentication tokens. Protect your credentials. No system is perfectly secure.
 
 ## 10. Children
 
-MatchForge is for adults (18+). We do not knowingly collect data from minors.
+MatchForge is for adults (**18+**). We do not knowingly collect data from minors.
 
-## 11. Changes
+## 11. International Users
 
-We may update this policy. A new version number will require re-acceptance where applicable.
+Primary compliance framing is **Canadian (PIPEDA)**. If you access from other jurisdictions, you are responsible for ensuring your use complies with local law.
 
-## 12. Contact
+## 12. Changes
 
-Privacy questions: the operator listed on your deployment's domain or GitHub repository.
+We may update this policy. A new version number may require re-acceptance.
+
+## 13. Contact
+
+Privacy requests: the operator listed on your deployment's domain or GitHub repository.
 
 ---
 

@@ -20,5 +20,5 @@ def accept_policies(db: Session, account_id: int) -> UserProfile:
 def require_policies_message() -> str:
     return (
         "Accept the Terms of Service and Privacy Policy at /legal/accept "
-        "before using MatchForge."
+        "before using MatchForge's safety and due diligence tools."
     )

@@ -9,69 +9,69 @@
 <header class="page-header">
   <div class="container">
     <h1>Privacy Policy</h1>
-    <p class="tagline">How MatchForge handles your data</p>
+    <p class="tagline">How we handle data in your personal safety toolbox</p>
   </div>
 </header>
 {% endblock %}
 
 {% block content %}
 <article class="legal-doc">
-  <p class="legal-version">Version {{ policies_version }} · Effective June 7, 2026</p>
+  <p class="legal-version">Version {{ policies_version }} · Effective June 8, 2026</p>
   <nav class="legal-nav">
     <a href="/legal/terms">Terms of Service</a>
     {% if authed %}<a href="/legal/accept">Policy acceptance</a>{% endif %}
     <a href="/">Home</a>
   </nav>
 
-  <p>MatchForge is built <strong>privacy-first</strong>. This policy explains what we collect, where it lives, and your rights.</p>
+  <p>MatchForge helps you perform <strong>personal safety and basic due diligence</strong> on publicly visible dating profile information you choose to analyze. This policy explains collection, use, and your rights under <strong>PIPEDA</strong>.</p>
 
   <h2>1. Our Privacy Principles</h2>
   <ul>
-    <li>Your data is yours — we do not sell personal information</li>
-    <li>Local-first when self-hosted — you control your server</li>
-    <li>Minimal collection — only what the toolbox needs</li>
-    <li>Transparent AI processing — you consent before image analysis</li>
-    <li>Deletion rights — you can remove your data</li>
+    <li>We do not sell personal information</li>
+    <li>We process <strong>your uploads</strong> from public or user-shared sources — not private databases</li>
+    <li>Explicit <strong>consent</strong> before AI analysis</li>
+    <li><strong>Delete profiles</strong> when you no longer need them</li>
   </ul>
 
-  <h2>2. What We Store</h2>
+  <h2>2. What We Process and Store</h2>
   <table>
     <thead><tr><th>Data</th><th>Purpose</th></tr></thead>
     <tbody>
-      <tr><td>Email address</td><td>Account sign-in and verification</td></tr>
-      <tr><td>Profile settings</td><td>Goals, optional bio, handle, avatar/selfie</td></tr>
-      <tr><td>Preference vector</td><td>Personalized ranking weights</td></tr>
-      <tr><td>Screenshots you upload</td><td>Vision extraction, trust scoring, ranking</td></tr>
-      <tr><td>Analysis results</td><td>Scores, trust badges, explanations</td></tr>
-      <tr><td>Policy acceptance</td><td>Timestamp and version you agreed to</td></tr>
+      <tr><td>Email address</td><td>Account access</td></tr>
+      <tr><td>Your profile settings</td><td>Goals, optional identity fields</td></tr>
+      <tr><td>Screenshots you upload</td><td>AI safety, authenticity, and compatibility analysis</td></tr>
+      <tr><td>Analysis results</td><td>Your private shortlist and explanations</td></tr>
+      <tr><td>Policy acceptance</td><td>Proof of consent (timestamp + version)</td></tr>
     </tbody>
   </table>
+  <p>We do <strong>not</strong> buy or merge third-party private databases about people in your screenshots.</p>
 
-  <h2>3. Where Data Lives</h2>
-  <p><strong>Self-hosted:</strong> Data stays in your PostgreSQL database and storage on your server.</p>
-  <p><strong>Hosted:</strong> Data is stored in your account on our infrastructure. When AI is enabled, screenshots and text may be sent to configured providers (e.g. xAI Grok) for analysis. We do not use your data to train third-party models.</p>
+  <h2>3. Consent &amp; PIPEDA (Canada)</h2>
+  <p>We process personal information based on your <strong>explicit consent</strong> (accepting these policies and uploading content), operating the tools you requested, and minimal security logging.</p>
+  <p>Canadian users may <strong>access, correct, delete</strong>, and challenge compliance. Withdraw consent by stopping use and requesting deletion.</p>
 
-  <h2>4. AI Processing and Consent</h2>
-  <p>Uploading screenshots, avatars, selfies, or examples means you <strong>consent</strong> to automated analysis for extraction, trust scoring, and ranking.</p>
+  <h2>4. Where Data Lives</h2>
+  <p><strong>Self-hosted:</strong> Your database and storage.</p>
+  <p><strong>Hosted:</strong> Your account on our infrastructure. AI providers (e.g. xAI Grok) receive uploads <em>only</em> to perform analysis you requested. We do not train third-party models on your data.</p>
 
-  <h2>5. Social Enrichment</h2>
-  <p>May retrieve <strong>publicly available</strong> information only — not private accounts or DMs.</p>
+  <h2>5. AI Processing You Consent To</h2>
+  <p>Uploading images means you consent to automated extraction, authenticity/safety scoring, and compatibility ranking. Outputs are <strong>probabilistic</strong> — not factual findings about any person.</p>
 
-  <h2>6. What We Do Not Do</h2>
+  <h2>6. Public Information Only</h2>
+  <p>Analyze publicly visible profile fields and optional public web enrichment. Do not upload non-public or unlawfully obtained content.</p>
+
+  <h2>7. What We Do Not Do</h2>
   <ul>
-    <li>Sell your personal information</li>
-    <li>Share screenshots with other users (unless you use share)</li>
-    <li>Publish ranked lists of real people</li>
+    <li>Sell or rent personal information</li>
+    <li>Share your screenshots (unless you use share)</li>
+    <li>Publish identifiable ranked lists</li>
   </ul>
 
-  <h2>7. Your Rights (Canada / PIPEDA)</h2>
-  <p>You may request access, correction, or deletion of your personal information. Contact the operator for hosted deployments; self-hosted operators handle requests directly.</p>
+  <h2>8. Retention &amp; Immediate Deletion</h2>
+  <p>Data persists while your account is active so you can review results. You may <strong>delete any profile workup immediately</strong> from the dashboard — removing screenshots, rankings, and analysis. Request full account deletion anytime. We encourage deleting profiles once due diligence is complete.</p>
 
-  <h2>8. Retention &amp; Security</h2>
-  <p>Data is retained while your account is active. Delete profile workups from the dashboard or request account deletion. We use HTTPS and access controls; protect your credentials.</p>
-
-  <h2>9. Children</h2>
-  <p>MatchForge is for adults (18+).</p>
+  <h2>9. Security, Children &amp; Changes</h2>
+  <p>HTTPS and access controls protect hosted accounts. Adults 18+ only. Policy updates may require re-acceptance.</p>
 
   <p><a href="/static/legal/privacy.md">Download markdown version</a></p>
 </article>
