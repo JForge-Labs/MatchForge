@@ -86,7 +86,7 @@ services:
         value: grok-4.20-0309-reasoning
         scope: RUN_TIME
       - key: BILLING_ENABLED
-        value: "false"
+        value: "true"
         scope: RUN_TIME
       - key: SIGNUP_GRANT_TOKENS
         value: "500"
