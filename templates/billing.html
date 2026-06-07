@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Tokens & billing — MatchForge{% endblock %}
+
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1>Tokens & billing</h1>
+    <p class="tagline">Prepaid credits for AI profile vetting and ranking</p>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="billing-card">
+  <p class="billing-balance">Current balance: <strong>{{ balance }}</strong> tokens</p>
+  <p class="billing-rate">{{ tokens_per_usd }} tokens per $1 · minimum top-up ${{ min_topup_usd }}</p>
+
+  {% if not billing_enabled %}
+  <div class="status info">Billing is not enabled yet — you're on free iteration mode.</div>
+  {% elif not stripe_configured %}
+  <div class="status error">Stripe is not fully configured on this environment.</div>
+  {% else %}
+  <form id="topup-form" class="billing-form">
+    <label for="amount-usd">Top-up amount (USD)</label>
+    <div class="billing-amount-row">
+      <span class="billing-currency">$</span>
+      <input type="number" id="amount-usd" name="amount_usd" min="{{ min_topup_usd }}" step="1"
+             value="{{ default_topup_usd }}" required>
+    </div>
+    <p class="field-hint" id="token-preview">
+      ≈ {{ default_topup_usd * tokens_per_usd }} tokens
+    </p>
+    <button type="submit" class="btn primary" id="topup-btn">Continue to secure checkout</button>
+  </form>
+  <p class="billing-foot">Payments processed by Stripe. Cards, Link, Apple Pay, and Google Pay where available.</p>
+  {% endif %}
+</section>
+
+<p class="auth-foot"><a href="/dashboard">← Back to dashboard</a></p>
+{% endblock %}
+
+{% block scripts %}
+{% if billing_enabled and stripe_configured %}
+<script>
+const rate = {{ tokens_per_usd }};
+const input = document.getElementById("amount-usd");
+const preview = document.getElementById("token-preview");
+const form = document.getElementById("topup-form");
+const btn = document.getElementById("topup-btn");
+
+function updatePreview() {
+  const usd = Math.max(0, parseInt(input.value || "0", 10));
+  preview.textContent = `≈ ${usd * rate} tokens`;
+}
+
+input.addEventListener("input", updatePreview);
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  btn.disabled = true;
+  btn.textContent = "Redirecting…";
+  try {
+    const res = await fetch("/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount_usd: parseInt(input.value, 10) }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail?.error || data.detail || "Checkout failed");
+    window.location.href = data.checkout_url;
+  } catch (err) {
+    alert(err.message || "Could not start checkout");
+    btn.disabled = false;
+    btn.textContent = "Continue to secure checkout";
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

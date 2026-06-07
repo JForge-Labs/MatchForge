@@ -94,6 +94,30 @@ services:
       - key: SEED_MIN_TOKENS
         value: "500"
         scope: RUN_TIME
+      - key: STRIPE_SECRET_KEY
+        value: __STRIPE_SECRET_KEY__
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRIPE_PUBLISHABLE_KEY
+        value: __STRIPE_PUBLISHABLE_KEY__
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRIPE_WEBHOOK_SECRET
+        value: __STRIPE_WEBHOOK_SECRET__
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRIPE_PRODUCT_ID
+        value: __STRIPE_PRODUCT_ID__
+        scope: RUN_TIME
+      - key: TOKENS_PER_USD
+        value: "20"
+        scope: RUN_TIME
+      - key: MIN_TOPUP_USD
+        value: "10"
+        scope: RUN_TIME
+      - key: DEFAULT_TOPUP_USD
+        value: "20"
+        scope: RUN_TIME
 
 databases:
   - name: db

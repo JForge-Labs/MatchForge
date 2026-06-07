@@ -195,6 +195,28 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; }
 }
 .btn.share-btn { border-color: var(--accent); color: var(--accent-hover); }
 
+.billing-card {
+  max-width: 28rem;
+  margin: 0 auto 2rem;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.billing-balance { font-size: 1.1rem; margin: 0 0 0.5rem; }
+.billing-rate, .billing-foot { color: var(--muted); font-size: 0.9rem; }
+.billing-form { margin-top: 1.25rem; }
+.billing-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+}
+.billing-currency { color: var(--muted); font-weight: 600; }
+.billing-amount-row input { flex: 1; }
+.billing-success h1 { margin-top: 0; }
+.billing-success-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
+
 .stats { display: flex; gap: 1rem; flex-wrap: wrap; }
 
 .stat-card {

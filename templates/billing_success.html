@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Payment received — MatchForge{% endblock %}
+
+{% block content %}
+<section class="billing-card billing-success">
+  <h1>Payment received</h1>
+  <p class="billing-balance">Your balance is now <strong>{{ balance }}</strong> tokens.</p>
+  <p class="field-hint">It may take a few seconds for tokens to appear if you just completed checkout.</p>
+  <div class="billing-success-actions">
+    <a href="/dashboard" class="btn primary">Back to dashboard</a>
+    <a href="/billing" class="btn">Add more tokens</a>
+  </div>
+</section>
+{% endblock %}
