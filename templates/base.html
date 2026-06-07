@@ -41,12 +41,14 @@
         <a href="/billing" class="{% if active == 'billing' %}active{% endif %}">Tokens</a>
         {% if is_admin %}<a href="/admin">Admin</a>{% endif %}
         <button type="button" class="nav-avatar-btn" id="nav-profile-open" aria-label="Open your profile"
-                {% if not nav_avatar_url %}title="{{ nav_display_name }}"{% endif %}>
+                title="{{ nav_display_name or 'Your profile' }}">
           {% if nav_avatar_url %}
-          <img src="{{ nav_avatar_url }}" alt="" class="nav-avatar-img" width="32" height="32">
-          {% else %}
-          <span class="nav-avatar-fallback">{{ (nav_display_name or 'U')[:1]|upper }}</span>
+          <img src="{{ nav_avatar_url }}" alt="" class="nav-avatar-img" width="32" height="32"
+               data-avatar-fallback>
           {% endif %}
+          <span class="nav-avatar-fallback{% if nav_avatar_url %} hidden{% endif %}" data-avatar-fallback>
+            {{ nav_avatar_initial or 'U' }}
+          </span>
         </button>
         <a href="/logout" class="nav-muted">Sign out</a>
         {% else %}
@@ -82,12 +84,16 @@
     <div class="user-profile-sheet">
       <button type="button" class="user-profile-dismiss" id="user-profile-dismiss" aria-label="Close">×</button>
       <div class="user-profile-header">
-        {% if nav_avatar_url %}
-        <img src="{{ nav_avatar_url }}" alt="" class="user-profile-avatar" width="64" height="64">
-        {% else %}
-        <span class="user-profile-avatar-fallback">{{ (nav_display_name or 'U')[:1]|upper }}</span>
-        {% endif %}
-        <div>
+        <div class="user-profile-avatar-wrap">
+          {% if nav_avatar_url %}
+          <img src="{{ nav_avatar_url }}" alt="" class="user-profile-avatar" width="64" height="64"
+               data-avatar-fallback>
+          {% endif %}
+          <span class="user-profile-avatar-fallback{% if nav_avatar_url %} hidden{% endif %}" data-avatar-fallback>
+            {{ nav_avatar_initial or 'U' }}
+          </span>
+        </div>
+        <div class="user-profile-identity">
           <h2 id="user-profile-title">{{ nav_display_name or 'Your profile' }}</h2>
           {% if nav_user_badge %}<p class="user-profile-badge">{{ nav_user_badge }}</p>{% endif %}
         </div>
