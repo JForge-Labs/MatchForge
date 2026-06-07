@@ -25,12 +25,10 @@ class OnboardingStatus(BaseModel):
     onboarding_complete: bool
     gender: str | None = None
     display_name: str | None = None
-    handle: str | None = None
     age: int | None = None
     location: str | None = None
     bio: str | None = None
-    has_avatar: bool = False
-    has_selfie: bool = False
+    has_profile_photo: bool = False
     preferred_genders: list[str] = Field(default_factory=list)
     intentions: list[str] = Field(default_factory=list)
     has_preference_vector: bool = False

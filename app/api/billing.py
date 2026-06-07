@@ -38,7 +38,7 @@ def billing_page(request: Request, db: Session = Depends(get_db)):
         request,
         "billing.html",
         {
-            "active": "settings",
+            "active": "billing",
             "authed": True,
             "balance": credit_service.get_balance(db, account_id),
             "billing_enabled": credit_service.billing_enabled(),
@@ -48,6 +48,7 @@ def billing_page(request: Request, db: Session = Depends(get_db)):
             "default_topup_usd": settings.default_topup_usd,
             "tokens_per_usd": settings.tokens_per_usd,
         },
+        db=db,
     )
 
 
@@ -86,19 +87,21 @@ def billing_success(
         request,
         "billing_success.html",
         {
-            "active": "settings",
+            "active": "billing",
             "authed": True,
             "balance": credit_service.get_balance(db, account_id),
         },
+        db=db,
     )
 
 
 @router.get("/cancel", response_class=HTMLResponse)
-def billing_cancel(request: Request):
+def billing_cancel(request: Request, db: Session = Depends(get_db)):
     if not is_authenticated(request):
         return RedirectResponse("/login?next=/billing", status_code=303)
     return render(
         request,
         "billing_cancel.html",
         {"active": "settings", "authed": True},
+        db=db,
     )

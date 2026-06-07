@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Admin — MatchForge{% endblock %}
+
+{% block content %}
+<section class="admin-dashboard">
+  <h1>Admin dashboard</h1>
+  <p class="section-lead">Operator metrics · {{ stats.generated_at[:19] }} UTC</p>
+
+  <div class="admin-grid">
+    <article class="stat-card">
+      <h3>Accounts</h3>
+      <p class="stat-value">{{ stats.total_accounts }}</p>
+      <p class="stat-sub">{{ stats.verified_accounts }} verified · {{ stats.new_accounts_7d }} new (7d)</p>
+    </article>
+    <article class="stat-card">
+      <h3>Profiles vetted</h3>
+      <p class="stat-value">{{ stats.total_profiles }}</p>
+    </article>
+    <article class="stat-card">
+      <h3>Stripe top-ups</h3>
+      <p class="stat-value">{{ stats.stripe_purchases }}</p>
+      <p class="stat-sub">${{ "%.0f"|format(stats.stripe_revenue_usd) }} · {{ stats.stripe_purchases_7d }} (7d)</p>
+    </article>
+    <article class="stat-card">
+      <h3>Tokens sold</h3>
+      <p class="stat-value">{{ stats.tokens_sold }}</p>
+      <p class="stat-sub">Ledger net: {{ stats.net_token_ledger }}</p>
+    </article>
+    <article class="stat-card">
+      <h3>Referrals</h3>
+      <p class="stat-value">{{ stats.referrals_locked }}</p>
+      <p class="stat-sub">{{ stats.referrals_pending }} pending</p>
+    </article>
+  </div>
+
+  <section class="admin-section">
+    <h2>Grant tokens</h2>
+    <form id="admin-grant-form" class="admin-grant-form">
+      <label class="text-field">
+        Account ID
+        <input type="number" id="grant-account-id" name="account_id" min="1" required>
+      </label>
+      <label class="text-field">
+        Amount
+        <input type="number" id="grant-amount" name="amount" min="1" max="10000" required>
+      </label>
+      <label class="text-field">
+        Note <small>(optional)</small>
+        <input type="text" id="grant-note" name="note" maxlength="200" placeholder="Support credit, promo, etc.">
+      </label>
+      <button type="submit" class="btn primary">Grant tokens</button>
+    </form>
+    <p id="grant-status" class="status hidden"></p>
+  </section>
+
+  <section class="admin-section">
+    <h2>Recent accounts</h2>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Tokens</th>
+            <th>Vetted</th>
+            <th>Status</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for acc in accounts %}
+          <tr>
+            <td>{{ acc.id }}</td>
+            <td>{{ acc.email }}</td>
+            <td>{{ acc.display_name or "—" }}</td>
+            <td>{{ acc.token_balance }}</td>
+            <td>{{ acc.profiles_vetted }}</td>
+            <td>
+              {% if acc.verified %}<span class="admin-pill ok">verified</span>{% else %}<span class="admin-pill">unverified</span>{% endif %}
+              {% if acc.onboarding_complete %}<span class="admin-pill ok">onboarded</span>{% endif %}
+              {% if acc.is_founder %}<span class="admin-pill">founder</span>{% endif %}
+            </td>
+            <td>{{ acc.created_at[:10] if acc.created_at else "—" }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7">No accounts yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="admin-section">
+    <h2>Recent token ledger</h2>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Account</th>
+            <th>Δ</th>
+            <th>Reason</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr>
+            <td>{{ tx.created_at[:16] if tx.created_at else "—" }}</td>
+            <td>#{{ tx.account_id }} · {{ tx.email }}</td>
+            <td class="{% if tx.delta > 0 %}admin-positive{% else %}admin-negative{% endif %}">
+              {{ "+" if tx.delta > 0 else "" }}{{ tx.delta }}
+            </td>
+            <td>{{ tx.reason }}{% if tx.topup_usd %} (${{ tx.topup_usd }}){% endif %}</td>
+            <td>{{ tx.note or "—" }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">No transactions yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/admin.js"></script>
+{% endblock %}

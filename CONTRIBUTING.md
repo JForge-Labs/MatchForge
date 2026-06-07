@@ -1,34 +1,28 @@
-# Contributing to MatchForge
+# MatchForge — internal development
 
-Thanks for your interest. This project is in active R&D (v0.1).
+**Private repository.** Access is limited to authorized operators only. Do not publish credentials, customer data, or production URLs in issues or commits.
 
-## Before you start
+## Workflow
 
-1. Read the **responsible-use** section in README.md
-2. Check [open issues](https://github.com/jfodchuk/MatchForge/issues) or the project Asana board (maintainer-managed)
-3. Keep changes surgical — MatchForge follows Karpathy-style minimal diffs
+1. Develop on CT108 (`/opt/matchforge`) or local clone with venv.
+2. Run tests: `python tests/test_*.py`
+3. Push `main` → staging (`dev.match-forge.com`).
+4. Tag `v*.*.*` → production (`match-forge.com`).
 
-## Development setup
+See `infrastructure/deploy/RUNBOOK.md` and `PROJECT_INSTRUCTIONS.md` for environment IDs and secrets handling.
 
-```bash
-git clone https://github.com/jfodchuk/MatchForge.git
-cd MatchForge
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # fill in locally, never commit
-python scripts/init_db.py
-python scripts/migrate_trust.py
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
+## Secrets
 
-Requires PostgreSQL 16 + pgvector, Redis, and Ollama locally.
+- Never commit `.env` or live API keys.
+- Stripe, xAI, SMTP, and DB credentials live in DO App Platform env or `~/.grok/secrets/`.
+- Rotate via `infrastructure/deploy/credential-rotation.md`.
 
-## Pull requests
+## Code standards
 
-- One logical change per PR
-- No secrets, screenshots of real people, or live `.env` files
-- Add tests when fixing bugs in `tests/`
+- Surgical changes only; match existing FastAPI + Jinja patterns.
+- Karpathy guidelines: `~/.claude/skills/karpathy-guidelines/SKILL.md`
+- Legal gates (`/legal/accept`) and billing webhooks must not be bypassed in production paths.
 
-## Code of conduct
+## Support
 
-Be respectful. This tool touches sensitive personal-data boundaries — contributors must uphold privacy-first principles.
+Internal operators only. User-facing support email is configured in Stripe and app env (`SMTP_FROM`).

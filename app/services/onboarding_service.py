@@ -138,9 +138,7 @@ def format_identity_block(user: UserProfile | None) -> str:
         return ""
     lines: list[str] = []
     if user.display_name:
-        lines.append(f"- Display name: {user.display_name}")
-    if user.handle:
-        lines.append(f"- Handle: @{user.handle}")
+        lines.append(f"- Name: {user.display_name}")
     if user.age:
         lines.append(f"- Age: {user.age}")
     if user.location:
@@ -378,30 +376,28 @@ async def complete_onboarding(
     other_note: str | None = None,
     account_id: int | None = None,
     display_name: str | None = None,
-    handle: str | None = None,
     age: int | None = None,
     location: str | None = None,
     bio: str | None = None,
     avatar_bytes: bytes | None = None,
-    selfie_bytes: bytes | None = None,
 ) -> UserProfile:
     user = get_or_create_user(db, account_id=account_id)
     example_analyses: list[dict] = []
     selfie_analysis: dict = {}
 
     user.display_name = (display_name or "").strip() or None
-    user.handle = _normalize_handle(handle)
+    user.handle = _normalize_handle(user.display_name)
     user.age = age
     user.location = (location or "").strip() or None
     user.bio = (bio or "").strip() or None
 
     media_account_id = account_id or user.id
     if avatar_bytes:
-        user.avatar_path = save_user_image(avatar_bytes, media_account_id, "avatar")
-    if selfie_bytes:
-        user.selfie_path = save_user_image(selfie_bytes, media_account_id, "selfie")
+        saved = save_user_image(avatar_bytes, media_account_id, "avatar")
+        user.avatar_path = saved
+        user.selfie_path = saved
         selfie_analysis = await analyze_selfie(
-            selfie_bytes, gender, intentions, preferred_genders
+            avatar_bytes, gender, intentions, preferred_genders
         )
         user.selfie_analysis = selfie_analysis
 

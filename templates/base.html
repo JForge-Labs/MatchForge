@@ -38,7 +38,16 @@
       <div class="nav-links">
         {% if authed %}
         <a href="/dashboard" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
-        <a href="/onboarding" class="{% if active == 'settings' %}active{% endif %}">Settings</a>
+        <a href="/billing" class="{% if active == 'billing' %}active{% endif %}">Tokens</a>
+        {% if is_admin %}<a href="/admin">Admin</a>{% endif %}
+        <button type="button" class="nav-avatar-btn" id="nav-profile-open" aria-label="Open your profile"
+                {% if not nav_avatar_url %}title="{{ nav_display_name }}"{% endif %}>
+          {% if nav_avatar_url %}
+          <img src="{{ nav_avatar_url }}" alt="" class="nav-avatar-img" width="32" height="32">
+          {% else %}
+          <span class="nav-avatar-fallback">{{ (nav_display_name or 'U')[:1]|upper }}</span>
+          {% endif %}
+        </button>
         <a href="/logout" class="nav-muted">Sign out</a>
         {% else %}
         <a href="/signup" class="btn btn-nav">Sign up</a>
@@ -66,6 +75,41 @@
       </span>
     </div>
   </footer>
+
+  {% if authed %}
+  <div id="user-profile-panel" class="user-profile-panel hidden" role="dialog" aria-labelledby="user-profile-title">
+    <div class="user-profile-backdrop" id="user-profile-close"></div>
+    <div class="user-profile-sheet">
+      <button type="button" class="user-profile-dismiss" id="user-profile-dismiss" aria-label="Close">×</button>
+      <div class="user-profile-header">
+        {% if nav_avatar_url %}
+        <img src="{{ nav_avatar_url }}" alt="" class="user-profile-avatar" width="64" height="64">
+        {% else %}
+        <span class="user-profile-avatar-fallback">{{ (nav_display_name or 'U')[:1]|upper }}</span>
+        {% endif %}
+        <div>
+          <h2 id="user-profile-title">{{ nav_display_name or 'Your profile' }}</h2>
+          {% if nav_user_badge %}<p class="user-profile-badge">{{ nav_user_badge }}</p>{% endif %}
+        </div>
+      </div>
+      <div class="user-profile-actions">
+        <a href="/onboarding" class="btn">Edit profile</a>
+        <a href="/billing" class="btn">Tokens & billing</a>
+      </div>
+      <section class="user-profile-danger">
+        <h3>Delete account</h3>
+        <p class="field-hint">Permanently removes your account, profiles, rankings, and token balance. This cannot be undone.</p>
+        <label class="text-field">
+          Type <strong>DELETE</strong> to confirm
+          <input type="text" id="delete-account-confirm" autocomplete="off" placeholder="DELETE">
+        </label>
+        <button type="button" class="btn danger" id="delete-account-btn">Delete my account</button>
+        <p id="delete-account-status" class="status hidden"></p>
+      </section>
+    </div>
+  </div>
+  <script src="/static/user-profile.js"></script>
+  {% endif %}
 
   {% block scripts %}{% endblock %}
 </body>

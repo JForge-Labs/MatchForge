@@ -4,9 +4,7 @@ const btn = document.getElementById("onboard-btn");
 const otherCheck = document.getElementById("other-check");
 const otherNote = document.getElementById("other-note");
 const avatarInput = document.getElementById("avatar-input");
-const selfieInput = document.getElementById("selfie-input");
 const avatarPreview = document.getElementById("avatar-preview");
-const selfiePreview = document.getElementById("selfie-preview");
 
 if (otherCheck) {
   otherCheck.addEventListener("change", () => {
@@ -30,11 +28,6 @@ function showMediaPreview(input, previewEl, existingUrl) {
 if (avatarInput) {
   avatarInput.addEventListener("change", () =>
     showMediaPreview(avatarInput, avatarPreview)
-  );
-}
-if (selfieInput) {
-  selfieInput.addEventListener("change", () =>
-    showMediaPreview(selfieInput, selfiePreview)
   );
 }
 
@@ -61,17 +54,14 @@ async function loadExistingProfile() {
       otherNote.classList.remove("hidden");
     }
     const displayName = document.getElementById("display-name");
-    const handle = document.getElementById("handle");
     const age = document.getElementById("age");
     const location = document.getElementById("location");
     const bio = document.getElementById("bio");
     if (displayName && data.display_name) displayName.value = data.display_name;
-    if (handle && data.handle) handle.value = data.handle;
     if (age && data.age) age.value = data.age;
     if (location && data.location) location.value = data.location;
     if (bio && data.bio) bio.value = data.bio;
-    if (data.has_avatar) showMediaPreview(null, avatarPreview, "/onboarding/media/avatar");
-    if (data.has_selfie) showMediaPreview(null, selfiePreview, "/onboarding/media/selfie");
+    if (data.has_profile_photo) showMediaPreview(null, avatarPreview, "/onboarding/media/avatar");
   } catch (_) {
     /* ignore */
   }
@@ -115,17 +105,14 @@ if (form) {
       formData.append("other_intention_note", otherNote.value);
     }
     const displayName = document.getElementById("display-name");
-    const handle = document.getElementById("handle");
     const age = document.getElementById("age");
     const location = document.getElementById("location");
     const bio = document.getElementById("bio");
     if (displayName?.value) formData.append("display_name", displayName.value.trim());
-    if (handle?.value) formData.append("handle", handle.value.trim());
     if (age?.value) formData.append("age", age.value);
     if (location?.value) formData.append("location", location.value.trim());
     if (bio?.value) formData.append("bio", bio.value.trim());
     if (avatarInput?.files?.[0]) formData.append("avatar", avatarInput.files[0]);
-    if (selfieInput?.files?.[0]) formData.append("selfie", selfieInput.files[0]);
     const files = document.getElementById("example-input").files;
     for (const file of files) {
       formData.append("examples", file);
