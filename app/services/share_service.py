@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.config import get_settings
 from app.models.profile import Profile, Ranking
 from app.services import referral_service
+from app.utils.social_meta import pick_share_hook, share_og_description
 from app.utils.trust_display import trust_card_context
 
 logger = logging.getLogger(__name__)
@@ -75,39 +76,23 @@ def format_share_text(
     *,
     share_url: str,
     referral_url: str,
+    hook: str | None = None,
 ) -> str:
-    name = _display_name(profile)
+    lead = hook or pick_share_hook(ranking.id)
     lines = [
-        f"MatchForge analysis — {name}",
+        f"{lead} — AI trust vetting on a dating profile",
         "",
         f"Trust {trust['overall_trust']:.0f}/100 · Match {ranking.overall_score:.0f}/100",
     ]
     if trust.get("catfish_risk") is not None:
         lines.append(f"Catfish risk {trust['catfish_risk']:.0f}%")
-    if trust.get("auth") is not None:
-        lines.append(f"Authenticity {trust['auth']:.0f}%")
-
-    if ranking.trust_explanation:
-        lines.extend(["", ranking.trust_explanation])
-    if ranking.explanation:
-        lines.extend(["", ranking.explanation])
-
-    if trust.get("risk_factors"):
-        lines.append("")
-        lines.append("Risk factors:")
-        for factor in trust["risk_factors"][:4]:
-            lines.append(f"• {factor}")
 
     lines.extend(
         [
             "",
-            f"Scores — compat {ranking.compatibility_score:.0f}, "
-            f"attraction {ranking.attractiveness_score:.0f}, "
-            f"red flags {ranking.red_flag_score:.0f}",
+            f"See the breakdown: {share_url}",
             "",
-            f"Full breakdown: {share_url}",
-            "",
-            f"Try MatchForge (bonus tokens with my link): {referral_url}",
+            f"Try MatchForge (bonus tokens): {referral_url}",
         ]
     )
     return "\n".join(lines)
@@ -136,9 +121,16 @@ def build_share_payload(db: Session, account_id: int, ranking_id: int) -> dict:
 
     token = create_share_token(account_id, ranking_id)
     share_url = build_share_url(token)
+    hook = pick_share_hook(ranking_id)
     text = format_share_text(
-        profile, ranking, trust, share_url=share_url, referral_url=referral_url
+        profile,
+        ranking,
+        trust,
+        share_url=share_url,
+        referral_url=referral_url,
+        hook=hook,
     )
+    og_description = share_og_description(trust["overall_trust"], ranking.overall_score)
 
     return {
         "ranking_id": ranking_id,
@@ -147,7 +139,9 @@ def build_share_payload(db: Session, account_id: int, ranking_id: int) -> dict:
         "share_url": share_url,
         "referral_url": referral_url,
         "text": text,
-        "title": f"MatchForge — {_display_name(profile)}",
+        "title": hook,
+        "hook": hook,
+        "og_description": og_description,
     }
 
 
@@ -174,6 +168,9 @@ def load_public_share(db: Session, token: str) -> dict | None:
     trust = trust_card_context(profile, ranking)
     referral = referral_service.get_referral_stats(db, account_id)
 
+    hook = pick_share_hook(ranking_id)
+    share_url = build_share_url(token)
+
     return {
         "profile": profile,
         "ranking": ranking,
@@ -181,4 +178,15 @@ def load_public_share(db: Session, token: str) -> dict | None:
         "referral_url": referral.get("referral_url"),
         "referral_code": referral.get("referral_code"),
         "display_name": _display_name(profile),
+        "share_hook": hook,
+        "share_url": share_url,
+        "og_title": hook,
+        "og_description": share_og_description(
+            trust["overall_trust"], ranking.overall_score
+        ),
+        "og_url": share_url,
+        "twitter_title": hook,
+        "twitter_description": share_og_description(
+            trust["overall_trust"], ranking.overall_score
+        ),
     }

@@ -4,8 +4,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import is_authenticated, login_user, logout_user, verify_password
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.services import account_service, email_service
+from app.utils.social_meta import REFERRAL_OG_DESCRIPTION, REFERRAL_OG_TITLE
 from app.utils.templates import render
 
 router = APIRouter(tags=["auth"])
@@ -26,7 +28,23 @@ def signup_page(request: Request, error: str | None = None, ref: str | None = No
     return render(
         request,
         "signup.html",
-        _auth_context(error=error, referral_code=ref or ""),
+        _auth_context(
+            error=error,
+            referral_code=ref or "",
+            referral_og_title=REFERRAL_OG_TITLE,
+            referral_og_description=REFERRAL_OG_DESCRIPTION,
+            **(
+                {
+                    "og_title": REFERRAL_OG_TITLE,
+                    "og_description": REFERRAL_OG_DESCRIPTION,
+                    "twitter_title": REFERRAL_OG_TITLE,
+                    "twitter_description": REFERRAL_OG_DESCRIPTION,
+                    "og_url": f"{get_settings().app_url.rstrip('/')}/signup?ref={ref}",
+                }
+                if ref
+                else {}
+            ),
+        ),
     )
 
 

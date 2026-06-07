@@ -1,17 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Shared analysis — {{ display_name }} — MatchForge{% endblock %}
-
-{% block head %}
-<meta property="og:title" content="MatchForge analysis — {{ display_name }}">
-<meta property="og:description" content="Trust {{ '%.0f'|format(trust.overall_trust) }}/100 · Match {{ '%.0f'|format(ranking.overall_score) }}/100">
-<meta name="description" content="Private dating intelligence shared via MatchForge">
-{% endblock %}
+{% block title %}{{ share_hook }} — MatchForge{% endblock %}
 
 {% block header %}
 <header class="page-header">
   <div class="container">
-    <h1>Shared analysis</h1>
-    <p class="tagline">A friend shared this MatchForge vetting summary with you</p>
+    <h1>{{ share_hook }}</h1>
+    <p class="tagline">A friend shared an AI-vetted dating profile breakdown with you</p>
   </div>
 </header>
 {% endblock %}

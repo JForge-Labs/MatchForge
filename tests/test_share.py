@@ -25,6 +25,7 @@ def test_share_text_includes_referral():
         username = None
 
     class R:
+        id = 42
         overall_score = 72.0
         compatibility_score = 80.0
         attractiveness_score = 65.0
@@ -42,7 +43,8 @@ def test_share_text_includes_referral():
     )
     assert "https://match-forge.com/signup?ref=xyz99" in text
     assert "https://match-forge.com/share/abc" in text
-    assert "Alex" in text
+    assert "Alex" not in text
+    assert "AI trust vetting" in text
 
 
 if __name__ == "__main__":
