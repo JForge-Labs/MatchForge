@@ -73,9 +73,15 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/success", response_class=HTMLResponse)
-def billing_success(request: Request, db: Session = Depends(get_db)):
+def billing_success(
+    request: Request,
+    session_id: str | None = None,
+    db: Session = Depends(get_db),
+):
     require_auth(request)
     account_id = get_account_id(request)
+    if session_id and credit_service.billing_enabled():
+        stripe_service.reconcile_checkout_session(db, session_id, account_id)
     return render(
         request,
         "billing_success.html",
