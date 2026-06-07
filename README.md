@@ -230,13 +230,31 @@ docker compose up -d   # postgres:5433, redis:6380
 
 Grok API calls are pay-per-use (~12 tokens per screenshot upload). Dev CT runs fine on 4 GB RAM since inference is remote.
 
+## Legal & Privacy
+
+MatchForge requires acceptance of our policies before using the toolbox.
+
+| Document | URL (when app is running) |
+|----------|---------------------------|
+| Terms of Service | `/legal/terms` |
+| Privacy Policy | `/legal/privacy` |
+| Policy acceptance | `/legal/accept` (after sign-in) |
+| Markdown sources | `static/legal/terms.md`, `static/legal/privacy.md` |
+
+**Policy version:** `2026-06-07` (stored on `UserProfile.policies_accepted_at` / `policies_version`)
+
+Hosted users must accept Terms and Privacy before onboarding or screenshot uploads. AI outputs include a standard disclaimer that catfish/authenticity detection is probabilistic.
+
+Canadian users: see Privacy Policy for **PIPEDA** access, correction, and deletion rights.
+
 ## Responsible Use
 
 Profile data describes **real people who have not consented to external ranking**.
 - Only ingest screenshots/data you are authorized to access
-- Store everything locally
+- Store everything locally (self-hosted) or in your account (hosted)
 - Treat scores as private decision-support, not ground truth
 - Respect platform Terms of Service for any enrichment
+- Accept Terms & Privacy at `/legal/accept` before first use
 
 ## Project Layout
 

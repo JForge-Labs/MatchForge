@@ -3,10 +3,18 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.core.auth import is_authenticated, login_user, logout_user, verify_password
+from app.core.auth import (
+    get_account_id,
+    is_authenticated,
+    login_user,
+    logout_user,
+    verify_password,
+)
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.services import account_service, email_service
+from app.services import onboarding_service
+from app.utils.legal import post_auth_path
 from app.utils.social_meta import REFERRAL_OG_DESCRIPTION, REFERRAL_OG_TITLE
 from app.utils.templates import render
 
@@ -22,9 +30,16 @@ def _auth_context(**extra):
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request, error: str | None = None, ref: str | None = None):
+def signup_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    error: str | None = None,
+    ref: str | None = None,
+):
     if is_authenticated(request):
-        return RedirectResponse(url="/onboarding", status_code=302)
+        account_id = get_account_id(request)
+        user = onboarding_service.get_or_create_user(db, account_id=account_id)
+        return RedirectResponse(url=post_auth_path(user), status_code=302)
     return render(
         request,
         "signup.html",
@@ -128,9 +143,9 @@ def login_submit(
                 status_code=401,
             )
         login_user(request)
-        if not next.startswith("/"):
-            next = "/dashboard"
-        return RedirectResponse(url=next, status_code=302)
+        account_id = get_account_id(request)
+        user = onboarding_service.get_or_create_user(db, account_id=account_id)
+        return RedirectResponse(url=post_auth_path(user), status_code=302)
 
     status, dev_token = account_service.request_login_link(db, email)
     if status == "invalid":
@@ -208,10 +223,10 @@ def verify_email(
             status_code=400,
         )
 
-    profile = account_service.ensure_profile(db, account)
+    account_service.ensure_profile(db, account)
     login_user(request, account_id=account.id, email=account.email)
-    target = "/onboarding" if not profile.onboarding_complete else "/dashboard"
-    return RedirectResponse(url=target, status_code=302)
+    user = onboarding_service.get_or_create_user(db, account_id=account.id)
+    return RedirectResponse(url=post_auth_path(user), status_code=302)
 
 
 @router.get("/logout")
