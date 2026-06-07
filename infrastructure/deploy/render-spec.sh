@@ -14,7 +14,7 @@ if [[ -f "${HOME}/.grok/secrets/stripe.env" ]]; then
 elif [[ -f "${ROOT}/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
-  source <(grep -E '^(STRIPE_|TOKENS_PER_USD|MIN_TOPUP_USD|DEFAULT_TOPUP_USD)=' "${ROOT}/.env")
+  source <(grep -E '^STRIPE_|^TOKENS_PER_USD|^MIN_TOPUP_USD|^DEFAULT_TOPUP_USD' "${ROOT}/.env")
   set +a
 fi
 if [[ -f "${HOME}/.grok/secrets/xai.env" ]]; then
