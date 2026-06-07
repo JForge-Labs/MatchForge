@@ -1,7 +1,7 @@
 """User profile model for onboarding and personalization."""
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,6 +16,14 @@ class UserProfile(Base):
         ForeignKey("accounts.id", ondelete="CASCADE"), unique=True, nullable=True
     )
     gender: Mapped[str | None] = mapped_column(String(32))
+    display_name: Mapped[str | None] = mapped_column(String(128))
+    handle: Mapped[str | None] = mapped_column(String(64))
+    age: Mapped[int | None] = mapped_column(Integer)
+    location: Mapped[str | None] = mapped_column(String(128))
+    bio: Mapped[str | None] = mapped_column(Text)
+    avatar_path: Mapped[str | None] = mapped_column(String(256))
+    selfie_path: Mapped[str | None] = mapped_column(String(256))
+    selfie_analysis: Mapped[dict] = mapped_column(JSONB, default=dict)
     preferred_genders: Mapped[list] = mapped_column(JSONB, default=list)
     intentions: Mapped[list] = mapped_column(JSONB, default=list)
     onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False)

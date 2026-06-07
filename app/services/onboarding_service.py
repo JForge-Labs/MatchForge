@@ -2,8 +2,11 @@
 import json
 import logging
 import re
+from io import BytesIO
+from pathlib import Path
 
 import httpx
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -27,14 +30,28 @@ BASE_WEIGHTS_BY_INTENT = {
     "other": {"compatibility": 0.40, "attractiveness": 0.30, "red_flags": 0.30},
 }
 
+SELFIE_ANALYSIS_PROMPT = """This is a selfie of the USER (not a candidate profile).
+They are a {gender} interested in {seeking} with goals: {intentions}.
+
+Infer presentation and compatibility signals that help rank candidates FOR THIS USER.
+Return ONLY valid JSON:
+{{
+  "presentation_style": ["how they present visually"],
+  "energy_signals": ["social/romantic energy inferred"],
+  "compatibility_hooks": ["what kinds of profiles likely mesh with them"],
+  "visual_preferences_implied": ["taste signals from their own presentation"]
+}}"""
+
 PREFERENCE_VECTOR_PROMPT = """You are a dating preference analyst building a personalized match ranking profile.
 
 USER PROFILE:
 - Their gender: {gender}
 - Interested in profiles of: {seeking}
 - Dating goals: {intentions}
+{identity_block}
 {other_note}
 {examples_block}
+{selfie_block}
 
 Based on this user's identity and goals, generate a rich preference vector for ranking dating profiles.
 
@@ -81,6 +98,65 @@ Return ONLY valid JSON:
   "values_signals": ["values this profile suggests"],
   "intention_fit": "how this aligns with their stated goals"
 }}"""
+
+
+def _normalize_handle(handle: str | None) -> str | None:
+    if not handle:
+        return None
+    cleaned = handle.strip().lstrip("@").strip()
+    return cleaned or None
+
+
+def save_user_image(image_bytes: bytes, account_id: int, kind: str) -> str:
+    """Persist avatar/selfie under data/uploads/users/<account_id>/."""
+    upload_dir = Path("data/uploads/users") / str(account_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    path = upload_dir / f"{kind}.jpg"
+    img = Image.open(BytesIO(image_bytes))
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    img.save(path, format="JPEG", quality=90)
+    return str(path)
+
+
+def user_profile_context(user: UserProfile) -> dict:
+    """Structured optional identity fields for ranking and preference prompts."""
+    return {
+        "display_name": user.display_name,
+        "handle": user.handle,
+        "age": user.age,
+        "location": user.location,
+        "bio": user.bio,
+        "has_avatar": bool(user.avatar_path),
+        "has_selfie": bool(user.selfie_path),
+        "selfie_analysis": user.selfie_analysis or {},
+    }
+
+
+def format_identity_block(user: UserProfile | None) -> str:
+    if not user:
+        return ""
+    lines: list[str] = []
+    if user.display_name:
+        lines.append(f"- Display name: {user.display_name}")
+    if user.handle:
+        lines.append(f"- Handle: @{user.handle}")
+    if user.age:
+        lines.append(f"- Age: {user.age}")
+    if user.location:
+        lines.append(f"- Location: {user.location}")
+    if user.bio:
+        lines.append(f"- About them: {user.bio}")
+    if user.selfie_analysis:
+        lines.append(
+            "- Selfie signals: "
+            + json.dumps(user.selfie_analysis, ensure_ascii=False)
+        )
+    if not lines:
+        return ""
+    return "OPTIONAL IDENTITY (user-provided — use for compatibility matching):\n" + "\n".join(
+        lines
+    )
 
 
 def _parse_json_response(text: str) -> dict:
@@ -195,6 +271,27 @@ def _fallback_preference_vector(
     }
 
 
+async def analyze_selfie(
+    image_bytes: bytes,
+    gender: str,
+    intentions: list[str],
+    preferred_genders: list[str],
+) -> dict:
+    labels = [INTENTION_LABELS.get(i, i) for i in intentions]
+    prompt = SELFIE_ANALYSIS_PROMPT.format(
+        gender=gender,
+        seeking=format_seeking(preferred_genders),
+        intentions=", ".join(labels),
+    )
+    try:
+        result, _usage = await llm_service.analyze_image_json(
+            prompt, image_bytes, max_dim=1024
+        )
+        return result
+    except (json.JSONDecodeError, ValueError, Exception):
+        return {"presentation_style": ["authentic presentation"], "parse_error": True}
+
+
 async def analyze_liked_example(
     image_bytes: bytes,
     gender: str,
@@ -222,6 +319,8 @@ async def generate_preference_vector(
     preferred_genders: list[str],
     example_analyses: list[dict],
     other_note: str | None = None,
+    identity_block: str = "",
+    selfie_analysis: dict | None = None,
 ) -> dict:
     labels = [INTENTION_LABELS.get(i, i) for i in intentions]
     examples_block = ""
@@ -230,13 +329,21 @@ async def generate_preference_vector(
             "LIKED PROFILE EXAMPLES (user finds these appealing):\n"
             + json.dumps(example_analyses, indent=2)
         )
+    selfie_block = ""
+    if selfie_analysis:
+        selfie_block = (
+            "USER SELFIE ANALYSIS (their own presentation — calibrate compatibility):\n"
+            + json.dumps(selfie_analysis, indent=2)
+        )
     other = f"- Other notes: {other_note}" if other_note else ""
     prompt = PREFERENCE_VECTOR_PROMPT.format(
         gender=gender,
         seeking=format_seeking(preferred_genders),
         intentions=", ".join(labels),
+        identity_block=identity_block,
         other_note=other,
         examples_block=examples_block,
+        selfie_block=selfie_block,
     )
     try:
         result, _usage = await llm_service.generate_json(
@@ -257,6 +364,8 @@ async def generate_preference_vector(
     result["traits"]["user_gender"] = gender
     result["traits"]["preferred_genders"] = preferred_genders
     result["traits"]["user_intentions"] = intentions
+    if selfie_analysis:
+        result["traits"]["user_selfie_signals"] = selfie_analysis
     return result
 
 
@@ -268,9 +377,33 @@ async def complete_onboarding(
     example_images: list[bytes] | None = None,
     other_note: str | None = None,
     account_id: int | None = None,
+    display_name: str | None = None,
+    handle: str | None = None,
+    age: int | None = None,
+    location: str | None = None,
+    bio: str | None = None,
+    avatar_bytes: bytes | None = None,
+    selfie_bytes: bytes | None = None,
 ) -> UserProfile:
     user = get_or_create_user(db, account_id=account_id)
     example_analyses: list[dict] = []
+    selfie_analysis: dict = {}
+
+    user.display_name = (display_name or "").strip() or None
+    user.handle = _normalize_handle(handle)
+    user.age = age
+    user.location = (location or "").strip() or None
+    user.bio = (bio or "").strip() or None
+
+    media_account_id = account_id or user.id
+    if avatar_bytes:
+        user.avatar_path = save_user_image(avatar_bytes, media_account_id, "avatar")
+    if selfie_bytes:
+        user.selfie_path = save_user_image(selfie_bytes, media_account_id, "selfie")
+        selfie_analysis = await analyze_selfie(
+            selfie_bytes, gender, intentions, preferred_genders
+        )
+        user.selfie_analysis = selfie_analysis
 
     if example_images:
         for img in example_images:
@@ -280,7 +413,13 @@ async def complete_onboarding(
             example_analyses.append(analysis)
 
     pref_data = await generate_preference_vector(
-        gender, intentions, preferred_genders, example_analyses, other_note
+        gender,
+        intentions,
+        preferred_genders,
+        example_analyses,
+        other_note,
+        identity_block=format_identity_block(user),
+        selfie_analysis=selfie_analysis or user.selfie_analysis or None,
     )
 
     profile_name = match_profile_label(

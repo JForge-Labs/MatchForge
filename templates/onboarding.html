@@ -43,6 +43,46 @@
     </fieldset>
 
     <fieldset>
+      <legend>About you <small>(optional)</small></legend>
+      <p class="field-hint">Helps calibrate compatibility scoring — all fields are optional and stay on your device.</p>
+      <div class="profile-optional-grid">
+        <label class="text-field">
+          Display name
+          <input type="text" id="display-name" name="display_name" placeholder="How you want to be referred to" maxlength="128">
+        </label>
+        <label class="text-field">
+          Handle
+          <input type="text" id="handle" name="handle" placeholder="@yourusername" maxlength="64">
+        </label>
+        <label class="text-field">
+          Age
+          <input type="number" id="age" name="age" min="18" max="120" placeholder="18+">
+        </label>
+        <label class="text-field">
+          Location
+          <input type="text" id="location" name="location" placeholder="City or region" maxlength="128">
+        </label>
+      </div>
+      <label class="text-field">
+        Short bio
+        <textarea id="bio" name="bio" rows="3" placeholder="A few lines about you, interests, or what you're looking for…" maxlength="500"></textarea>
+      </label>
+      <div class="profile-media-row">
+        <label class="media-field">
+          Avatar
+          <input type="file" id="avatar-input" name="avatar" accept="image/*">
+          <img id="avatar-preview" class="media-preview hidden" alt="Avatar preview">
+        </label>
+        <label class="media-field">
+          Selfie
+          <input type="file" id="selfie-input" name="selfie" accept="image/*">
+          <img id="selfie-preview" class="media-preview hidden" alt="Selfie preview">
+          <span class="field-hint">Used to infer presentation style for better compatibility matching.</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Liked profile examples <small>(optional)</small></legend>
       <p class="hint">Upload screenshots of profiles you find appealing — AI infers your taste from them.</p>
       <div id="example-drop" class="drop-zone small">

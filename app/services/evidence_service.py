@@ -143,6 +143,7 @@ async def refresh_ranking(
     user_gender: str | None,
     user_intentions: list[str] | None,
     ui_context: dict | None,
+    user_profile: dict | None = None,
 ) -> Ranking | None:
     ranking = db.query(Ranking).filter(Ranking.profile_id == profile.id).first()
     if not ranking:
@@ -155,6 +156,7 @@ async def refresh_ranking(
         user_intentions=user_intentions,
         ui_context=ui_context,
         trust_data=trust,
+        user_profile=user_profile,
     )
     adjusted = trust_service.compute_trust_adjusted_scores(scores, trust)
     ranking.overall_score = adjusted["overall_score"]

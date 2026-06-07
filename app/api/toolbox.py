@@ -156,6 +156,7 @@ async def upload_screenshots(
             user_intentions=user.intentions,
             ui_context=user.ui_context,
             trust_data=trust,
+            user_profile=onboarding_service.user_profile_context(user),
         )
         scores = trust_service.compute_trust_adjusted_scores(base_scores, trust)
         ranking_service.apply_ranking_to_profile(profile, scores)

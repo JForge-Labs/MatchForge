@@ -84,6 +84,21 @@ def main() -> None:
         )
         conn.commit()
 
+    v03_stmts = [
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS display_name VARCHAR(128)",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS handle VARCHAR(64)",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS age INTEGER",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS location VARCHAR(128)",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS bio TEXT",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(256)",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS selfie_path VARCHAR(256)",
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS selfie_analysis JSONB DEFAULT '{}'::jsonb",
+    ]
+    with engine.connect() as conn:
+        for sql in v03_stmts:
+            conn.execute(text(sql))
+        conn.commit()
+
     v02_stmts = [
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_founder BOOLEAN DEFAULT FALSE",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS founder_number INTEGER",
