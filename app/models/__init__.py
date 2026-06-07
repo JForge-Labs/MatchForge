@@ -8,6 +8,7 @@ from app.models.profile import (
     Ranking,
     SocialEnrichment,
 )
+from app.models.share_open import ShareOpen
 from app.models.user import UserProfile
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "Ranking",
     "PreferenceVector",
     "SocialEnrichment",
+    "ShareOpen",
     "UserProfile",
 ]

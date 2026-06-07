@@ -14,6 +14,7 @@ from app.models.account import Account, AuthToken  # noqa: F401 — register tab
 from app.models.credits import AccountCredit, CreditTransaction  # noqa: F401
 from app.models.profile import PreferenceVector, ProfileEvidence  # noqa: F401
 from app.models.referral import Referral  # noqa: F401
+from app.models.share_open import ShareOpen  # noqa: F401
 from app.models.user import UserProfile
 
 DEFAULT_TRAITS = {

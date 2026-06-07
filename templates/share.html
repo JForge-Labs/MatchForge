@@ -86,6 +86,9 @@
 {% endif %}
 
 <p class="share-disclaimer">Personal safety due diligence only — not a background check or judgment about any person. Based on publicly visible profile information; AI detection is probabilistic. Always verify yourself.</p>
+{% if share_expires_at %}
+<p class="share-timer-note">This link expires 10 minutes after first view.</p>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -97,5 +100,14 @@ function copyShareReferral() {
     input.select();
   });
 }
+{% if share_expires_at %}
+(function () {
+  const expiresAt = {{ share_expires_at }} * 1000;
+  const delay = Math.max(0, expiresAt - Date.now());
+  if (delay > 0) {
+    window.setTimeout(() => window.location.reload(), delay);
+  }
+})();
+{% endif %}
 </script>
 {% endblock %}
