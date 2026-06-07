@@ -24,5 +24,5 @@ def render(
     account_id = get_account_id(request)
     if db and account_id:
         merged.update(nav_user(db, account_id))
-    merged["is_admin"] = is_admin(request)
+    merged["is_admin"] = is_admin(request, db)
     return templates.TemplateResponse(request, name, merged, **kwargs)
