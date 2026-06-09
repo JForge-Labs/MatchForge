@@ -7,7 +7,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.profile_extract_service import (
     build_enrichment_query_from_data,
+    extract_urls_from_text,
     normalize_extracted_profile,
+    parse_social_profile_url,
 )
 
 
@@ -39,8 +41,25 @@ def test_unknown_name_falls_back_to_username():
     assert out["name"] == "cool.handle"
 
 
+def test_extract_urls_from_text():
+    text = "Check https://instagram.com/cool.handle and also https://x.com/someone."
+    assert extract_urls_from_text(text) == [
+        "https://instagram.com/cool.handle",
+        "https://x.com/someone",
+    ]
+
+
+def test_parse_social_profile_url_instagram():
+    parsed = parse_social_profile_url("https://www.instagram.com/cool.handle/")
+    assert parsed["platform"] == "instagram"
+    assert parsed["username"] == "cool.handle"
+    assert parsed["profile_url"] == "https://instagram.com/cool.handle"
+
+
 if __name__ == "__main__":
     test_facebook_username_from_url_in_bio()
     test_facebook_search_query_uses_quoted_name_without_username()
     test_unknown_name_falls_back_to_username()
+    test_extract_urls_from_text()
+    test_parse_social_profile_url_instagram()
     print("ok")

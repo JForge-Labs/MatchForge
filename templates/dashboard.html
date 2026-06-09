@@ -141,10 +141,8 @@
         {% if ranking.profile.age %}<span>{{ ranking.profile.age }}</span>{% endif %}
         {% if ranking.profile.location %}<span>{{ ranking.profile.location }}</span>{% endif %}
         {% if ranking.profile.platform %}<span class="platform">{{ ranking.profile.platform }}</span>{% endif %}
-        {% if ranking.profile.extracted_data and ranking.profile.extracted_data.get('profile_url') %}
-        <a href="{{ ranking.profile.extracted_data.profile_url }}" target="_blank" rel="noopener" class="profile-link">source</a>
-        {% elif ranking.profile.username and ranking.profile.platform == 'facebook' %}
-        <a href="https://facebook.com/{{ ranking.profile.username }}" target="_blank" rel="noopener" class="profile-link">facebook</a>
+        {% if t.source_url %}
+        <a href="{{ t.source_url }}" target="_blank" rel="noopener" class="profile-link">source</a>
         {% endif %}
         {% if ranking.profile.extracted_data and ranking.profile.extracted_data.get('parse_error') %}
         <span class="enrich-status enrich-error" title="Vision model unreachable or parse failed">vision degraded</span>
@@ -228,10 +226,10 @@
             id="agent-prompt-{{ ranking.profile.id }}"
             class="agent-prompt"
             rows="3"
-            placeholder="Add context, vouch they're real, or ask for a deep vet… Paste, drag &amp; drop, or attach screenshots from other platforms or chat snips."
+            placeholder="Add context, vouch they're real, or ask for a deep vet… Paste social profile links, drag &amp; drop screenshots, or attach chat snips."
           ></textarea>
           <div id="agent-attachments-{{ ranking.profile.id }}" class="agent-attachments hidden"></div>
-          <p class="agent-compose-hint">Paste, drag &amp; drop, or attach images</p>
+          <p class="agent-compose-hint">Paste social links or images · drag &amp; drop supported</p>
         </div>
         <div class="agent-row">
           <input

@@ -6,13 +6,15 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.models.profile import Profile, ProfileEvidence, Ranking
+from app.models.profile import Profile, ProfileEvidence, Ranking, SocialEnrichment
 from app.services import (
     evidence_service,
     llm_service,
     onboarding_service,
+    profile_extract_service,
     profile_merge_service,
     ranking_service,
+    social_enrich_service,
     trust_service,
     vetting_service,
     vision_service,
@@ -54,12 +56,13 @@ _VET_RE = re.compile(
     r"look\s+them\s+up|linkedin|instagram|facebook|cross.?platform)\b",
     re.I,
 )
-def estimate_agent_cost(prompt: str, image_count: int) -> int:
+def estimate_agent_cost(prompt: str, image_count: int, url_count: int = 0) -> int:
     """Rough minimum tokens for UI hint before submit."""
     cost = route("rank_refresh").token_cost
     if prompt.strip():
         cost += route("profile_agent").token_cost
     cost += route("profile_agent_image").token_cost * image_count
+    cost += route("social_link").token_cost * url_count
     if prompt and _VET_RE.search(prompt):
         cost += route("deep_vet").token_cost
     return cost
@@ -175,6 +178,68 @@ async def _process_profile_image(
     return analysis, "profile_agent_image"
 
 
+async def _process_social_url(
+    db: Session,
+    profile: Profile,
+    url: str,
+    *,
+    account_id: int,
+) -> tuple[dict, str]:
+    """Ingest a dropped/pasted social profile URL onto this tile."""
+    parsed = profile_extract_service.parse_social_profile_url(url)
+    if not parsed:
+        return {"url": url, "status": "unrecognized"}, "user_note"
+
+    platform = parsed["platform"]
+    username = parsed["username"]
+    if not profile.username:
+        profile.username = username
+    if not profile.platform or profile.platform == "other":
+        profile.platform = platform
+
+    extracted = dict(profile.extracted_data or {})
+    extracted["profile_url"] = parsed["profile_url"]
+    social_links = list(extracted.get("social_links") or [])
+    if url not in social_links:
+        social_links.append(url)
+    extracted["social_links"] = social_links[-10:]
+    profile.extracted_data = extracted
+
+    findings = await social_enrich_service.search_platform(platform, username)
+    summary = social_enrich_service._summarize_findings(platform, findings)
+    profile_url = social_enrich_service._profile_url(
+        platform, username, findings.get("search_url")
+    ) or parsed["profile_url"]
+
+    existing = (
+        db.query(SocialEnrichment)
+        .filter(
+            SocialEnrichment.profile_id == profile.id,
+            SocialEnrichment.platform == platform,
+        )
+        .first()
+    )
+    if existing:
+        existing.username = username
+        existing.url = profile_url
+        existing.summary = summary
+        existing.findings = findings
+    else:
+        db.add(
+            SocialEnrichment(
+                profile_id=profile.id,
+                platform=platform,
+                username=username,
+                url=profile_url,
+                summary=summary,
+                findings=findings,
+            )
+        )
+
+    profile.enrichment_status = "done"
+    return {**parsed, "summary": summary, "findings_status": findings.get("status")}, "social_link"
+
+
 async def _process_message_image(
     db: Session,
     profile: Profile,
@@ -194,16 +259,36 @@ async def run_agent_prompt(
     account_id: int,
     prompt: str,
     images: list[bytes],
+    urls: list[str] | None = None,
 ) -> dict:
     """Execute user agent instruction; return actions taken and token spend."""
     prompt = (prompt or "").strip()
-    if not prompt and not images:
-        return {"error": "empty", "message": "Enter a prompt or attach images."}
+    social_urls: list[str] = []
+    seen_urls: set[str] = set()
+    for raw in (urls or []) + profile_extract_service.extract_urls_from_text(prompt):
+        url = (raw or "").strip()
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        social_urls.append(url)
+
+    if not prompt and not images and not social_urls:
+        return {"error": "empty", "message": "Enter a prompt, social link, or attach images."}
 
     tokens = 0
     charge_activities: list[str] = []
     image_summaries: list[dict] = []
+    url_summaries: list[dict] = []
     actions: list[str] = []
+
+    for url in social_urls:
+        parsed, act = await _process_social_url(
+            db, profile, url, account_id=account_id
+        )
+        actions.append("social_link")
+        charge_activities.append(act)
+        tokens += route(act).token_cost
+        url_summaries.append(parsed if isinstance(parsed, dict) else {"url": url})
 
     for img in images:
         if _VET_RE.search(prompt) or len(images) == 1:
@@ -234,7 +319,11 @@ async def run_agent_prompt(
         agent_prompt = AGENT_PROMPT.format(
             profile_json=_profile_snapshot(profile),
             prompt=prompt,
-            image_summaries=json.dumps(image_summaries, indent=2) or "(none)",
+            image_summaries=json.dumps(
+                {"images": image_summaries, "social_links": url_summaries},
+                indent=2,
+            )
+            or "(none)",
         )
         parsed_agent, _usage = await llm_service.generate_json(agent_prompt)
         _merge_agent_result(profile, parsed_agent)
@@ -246,7 +335,7 @@ async def run_agent_prompt(
         actions.append("agent_prompt")
 
     want_vet = bool(parsed_agent.get("request_deep_vet")) or (
-        prompt and _VET_RE.search(prompt) and not images
+        prompt and _VET_RE.search(prompt) and not images and not social_urls
     )
     if want_vet:
         charge_activities.append("deep_vet")
@@ -269,6 +358,7 @@ async def run_agent_prompt(
             "summary": parsed_agent.get("summary"),
             "actions": actions,
             "image_count": len(images),
+            "url_count": len(social_urls),
         },
         tokens_charged=tokens,
     )

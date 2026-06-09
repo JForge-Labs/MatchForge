@@ -37,6 +37,70 @@ PLATFORM_PROFILE_URLS = {
 }
 
 
+def _scan_findings_text(findings: dict, platform: str, *texts: str) -> None:
+    pattern = PLATFORM_URL_PATTERNS.get(platform)
+    for raw in texts:
+        if not raw:
+            continue
+        snippet = raw.strip()[:400]
+        if snippet:
+            findings["snippets"].append(snippet)
+        if pattern:
+            for match in pattern.finditer(snippet):
+                user = match.group(1)
+                if user.lower() not in ("pages", "groups", "profile.php"):
+                    findings["usernames"].append(user)
+
+
+async def _search_via_brave(platform: str, query: str) -> dict | None:
+    """Brave Web Search API — preferred when BRAVE_API_KEY is configured."""
+    if not settings.brave_api_key:
+        return None
+    site = PLATFORM_SITE_QUERIES.get(platform)
+    if not site:
+        return None
+
+    search_query = f"{site} {query}"
+    findings: dict = {
+        "platform": platform,
+        "search_url": f"https://search.brave.com/search?q={quote_plus(search_query)}",
+        "snippets": [],
+        "usernames": [],
+        "query": search_query,
+        "provider": "brave",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as client:
+            resp = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params={"q": search_query, "count": 10},
+                headers={
+                    "Accept": "application/json",
+                    "X-Subscription-Token": settings.brave_api_key,
+                },
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+
+        pattern = PLATFORM_URL_PATTERNS.get(platform)
+        for result in (payload.get("web") or {}).get("results") or []:
+            title = result.get("title") or ""
+            description = result.get("description") or ""
+            url = result.get("url") or ""
+            _scan_findings_text(findings, platform, f"{title} {description}")
+            if pattern and url:
+                match = pattern.search(url)
+                if match:
+                    findings["usernames"].append(match.group(1))
+
+        findings["usernames"] = list(dict.fromkeys(findings["usernames"]))[:5]
+        findings["status"] = "ok" if findings["snippets"] or findings["usernames"] else "empty"
+        return findings
+    except Exception as exc:
+        logger.warning("Brave enrich search failed for %s: %s", platform, exc)
+        return None
+
+
 async def _search_via_web(platform: str, query: str) -> dict:
     """DuckDuckGo HTML search — no browser required (prod-safe)."""
     site = PLATFORM_SITE_QUERIES.get(platform)
@@ -63,16 +127,10 @@ async def _search_via_web(platform: str, query: str) -> dict:
             resp.raise_for_status()
             html = resp.text
 
-        pattern = PLATFORM_URL_PATTERNS.get(platform)
         for block in re.findall(r'class="result__snippet"[^>]*>([^<]+)<', html)[:8]:
-            snippet = block.strip()[:400]
-            findings["snippets"].append(snippet)
-            if pattern:
-                for match in pattern.finditer(snippet):
-                    user = match.group(1)
-                    if user.lower() not in ("pages", "groups", "profile.php"):
-                        findings["usernames"].append(user)
+            _scan_findings_text(findings, platform, block)
 
+        pattern = PLATFORM_URL_PATTERNS.get(platform)
         for link in re.findall(r'class="result__a"[^>]*href="([^"]+)"', html)[:10]:
             if pattern:
                 match = pattern.search(link)
@@ -139,6 +197,9 @@ async def search_platform(platform: str, query: str) -> dict:
 
 
 async def _search_platform(platform: str, query: str) -> dict:
+    brave = await _search_via_brave(platform, query)
+    if brave and brave.get("status") == "ok":
+        return brave
     findings = await _search_via_web(platform, query)
     if findings.get("status") == "ok" and (findings.get("snippets") or findings.get("usernames")):
         return findings

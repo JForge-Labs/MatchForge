@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     )
     redis_url: str = "redis://localhost:6379/0"
 
+    # Brave Search (optional — improves public social enrichment)
+    brave_api_key: str = ""
+
     # xAI Grok (all environments)
     xai_api_key: str = ""
     xai_vision_model: str = "grok-4.3"
