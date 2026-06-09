@@ -9,6 +9,8 @@ from io import BytesIO
 import httpx
 from PIL import Image
 
+from app.utils.image import open_normalized
+
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -42,9 +44,7 @@ def parse_json_response(text: str) -> dict:
 
 def encode_image_jpeg(image_bytes: bytes, max_dim: int = 1536) -> str:
     """Resize and return base64 JPEG data URL for xAI vision input."""
-    img = Image.open(BytesIO(image_bytes))
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
+    img = open_normalized(image_bytes)
     w, h = img.size
     if max(w, h) > max_dim:
         scale = max_dim / max(w, h)

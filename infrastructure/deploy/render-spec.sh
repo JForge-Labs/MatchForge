@@ -21,6 +21,15 @@ if [[ -f "${HOME}/.grok/secrets/xai.env" ]]; then
   # shellcheck disable=SC1091
   source "${HOME}/.grok/secrets/xai.env"
 fi
+if [[ -f "${HOME}/.grok/secrets/brave.env" ]]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.grok/secrets/brave.env"
+elif [[ -f "${ROOT}/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source <(grep -E '^BRAVE_API_KEY=' "${ROOT}/.env")
+  set +a
+fi
 if [[ -f "${HOME}/.grok/secrets/digitalocean.env" ]]; then
   # shellcheck disable=SC1091
   source "${HOME}/.grok/secrets/digitalocean.env"
@@ -42,6 +51,7 @@ sed \
   -e "s|__SMTP_FROM__|${SMTP_FROM}|g" \
   -e "s|__SMTP_USE_TLS__|${SMTP_USE_TLS}|g" \
   -e "s|__XAI_API_KEY__|${XAI_API_KEY}|g" \
+  -e "s|__BRAVE_API_KEY__|${BRAVE_API_KEY:-}|g" \
   -e "s|__STRIPE_SECRET_KEY__|${STRIPE_SECRET_KEY}|g" \
   -e "s|__STRIPE_PUBLISHABLE_KEY__|${STRIPE_PUBLISHABLE_KEY}|g" \
   -e "s|__STRIPE_WEBHOOK_SECRET__|${STRIPE_WEBHOOK_SECRET}|g" \

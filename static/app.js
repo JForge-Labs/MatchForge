@@ -134,10 +134,55 @@ function showStatus(msg, type) {
 }
 
 const agentFileStore = new Map();
+const agentUrlStore = new Map();
 const agentPreviewUrls = new Map();
+const URL_IN_TEXT_RE = /https?:\/\/[^\s<>"']+/gi;
 
 function getAgentFiles(profileId) {
   return agentFileStore.get(String(profileId)) || [];
+}
+
+function getAgentUrls(profileId) {
+  return agentUrlStore.get(String(profileId)) || [];
+}
+
+function normalizeAgentUrl(url) {
+  return (url || "").trim().replace(/[.,);>\]"']+$/, "");
+}
+
+function extractUrlsFromText(text) {
+  if (!text) return [];
+  const seen = new Set();
+  const urls = [];
+  for (const match of text.matchAll(URL_IN_TEXT_RE)) {
+    const url = normalizeAgentUrl(match[0]);
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+  return urls;
+}
+
+function addAgentUrls(profileId, urlList) {
+  const urls = [...urlList].map(normalizeAgentUrl).filter(Boolean);
+  if (!urls.length) return false;
+  const key = String(profileId);
+  const merged = [...getAgentUrls(profileId)];
+  for (const url of urls) {
+    if (!merged.includes(url)) merged.push(url);
+  }
+  agentUrlStore.set(key, merged);
+  renderAgentAttachments(profileId);
+  return true;
+}
+
+function removeAgentUrl(profileId, index) {
+  const key = String(profileId);
+  const urls = [...getAgentUrls(profileId)];
+  urls.splice(index, 1);
+  agentUrlStore.set(key, urls);
+  renderAgentAttachments(profileId);
 }
 
 function revokeAgentPreviews(profileId) {
@@ -159,13 +204,33 @@ function renderAgentAttachments(profileId) {
   if (!container) return;
   revokeAgentPreviews(profileId);
   const files = getAgentFiles(profileId);
+  const socialUrls = getAgentUrls(profileId);
   container.innerHTML = "";
-  if (!files.length) {
+  if (!files.length && !socialUrls.length) {
     container.classList.add("hidden");
     return;
   }
   container.classList.remove("hidden");
   const urls = [];
+  socialUrls.forEach((url, index) => {
+    const chip = document.createElement("div");
+    chip.className = "agent-attachment-chip url-chip";
+    const link = document.createElement("a");
+    link.className = "agent-url-link";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = url.replace(/^https?:\/\/(www\.)?/, "");
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "agent-attachment-remove";
+    remove.setAttribute("aria-label", "Remove link");
+    remove.textContent = "×";
+    remove.addEventListener("click", () => removeAgentUrl(profileId, index));
+    chip.appendChild(link);
+    chip.appendChild(remove);
+    container.appendChild(chip);
+  });
   files.forEach((file, index) => {
     const chip = document.createElement("div");
     chip.className = "agent-attachment-chip";
@@ -204,6 +269,21 @@ function removeAgentFile(profileId, index) {
   agentFileStore.set(key, files);
   syncAgentFileInput(profileId);
   renderAgentAttachments(profileId);
+}
+
+function extractUrlsFromDataTransfer(dt) {
+  if (!dt) return [];
+  const urls = [];
+  const uriList = dt.getData("text/uri-list");
+  if (uriList) urls.push(...extractUrlsFromText(uriList));
+  const plain = dt.getData("text/plain");
+  if (plain) urls.push(...extractUrlsFromText(plain));
+  const seen = new Set();
+  return urls.filter((url) => {
+    if (seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
 }
 
 function extractImagesFromDataTransfer(dt) {
@@ -252,9 +332,12 @@ function initAgentPanels() {
 
     textarea?.addEventListener("paste", (e) => {
       const images = extractImagesFromClipboard(e.clipboardData);
-      if (!images.length) return;
-      e.preventDefault();
-      addAgentFiles(profileId, images);
+      const pastedUrls = extractUrlsFromText(e.clipboardData?.getData("text/plain") || "");
+      if (images.length) {
+        e.preventDefault();
+        addAgentFiles(profileId, images);
+      }
+      if (pastedUrls.length) addAgentUrls(profileId, pastedUrls);
     });
 
     if (compose) {
@@ -272,7 +355,9 @@ function initAgentPanels() {
       });
       compose.addEventListener("drop", (e) => {
         const images = extractImagesFromDataTransfer(e.dataTransfer);
+        const droppedUrls = extractUrlsFromDataTransfer(e.dataTransfer);
         if (images.length) addAgentFiles(profileId, images);
+        if (droppedUrls.length) addAgentUrls(profileId, droppedUrls);
       });
     }
   });
@@ -309,14 +394,16 @@ async function submitAgent(profileId) {
   const promptEl = document.getElementById(`agent-prompt-${profileId}`);
   const prompt = promptEl?.value?.trim() || "";
   const files = getAgentFiles(profileId);
-  if (!prompt && !files.length) {
-    showStatus("Enter a prompt or attach images for the agent.", "error");
+  const socialUrls = getAgentUrls(profileId);
+  if (!prompt && !files.length && !socialUrls.length) {
+    showStatus("Enter a prompt, social link, or attach images for the agent.", "error");
     return;
   }
 
   const body = new FormData();
   body.append("prompt", prompt);
   for (const file of files) body.append("files", file);
+  for (const url of socialUrls) body.append("urls", url);
 
   showStatus("Agent running…", "");
   try {

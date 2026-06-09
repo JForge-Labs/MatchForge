@@ -45,6 +45,12 @@ ACTIVITIES: dict[str, LlmRoute] = {
         10,
         "Additional profile screenshot via agent (multi-platform enrich)",
     ),
+    "social_link": LlmRoute(
+        "social_link",
+        settings.xai_text_fast,
+        5,
+        "Social profile URL dropped into agent compose",
+    ),
     "rank_refresh": LlmRoute(
         "rank_refresh",
         settings.xai_text_fast,

@@ -2,6 +2,7 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -23,6 +24,7 @@ from app.services import (
     agent_service,
     credit_service,
     evidence_service,
+    profile_extract_service,
     onboarding_service,
     ranking_service,
     share_service,
@@ -202,9 +204,10 @@ async def profile_agent(
     background_tasks: BackgroundTasks,
     prompt: str = Form(""),
     files: list[UploadFile] = File(default=[]),
+    urls: Annotated[list[str], Form()] = [],
     db: Session = Depends(get_db),
 ):
-    """Unified agent enrich: free-text prompt + optional images (profiles, chats, platforms)."""
+    """Unified agent enrich: free-text prompt + optional images and social links."""
     require_auth(request)
     account_id = get_account_id(request)
     profile = _owned_profile(db, profile_id, account_id)
@@ -217,14 +220,22 @@ async def profile_agent(
         if data:
             images.append(data)
 
-    if not prompt.strip() and not images:
-        raise HTTPException(400, "Enter a prompt or attach at least one image.")
+    social_urls: list[str] = []
+    seen_urls: set[str] = set()
+    for raw in (urls or []) + profile_extract_service.extract_urls_from_text(prompt):
+        url = (raw or "").strip()
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            social_urls.append(url)
 
-    est = agent_service.estimate_agent_cost(prompt, len(images))
+    if not prompt.strip() and not images and not social_urls:
+        raise HTTPException(400, "Enter a prompt, social link, or attach at least one image.")
+
+    est = agent_service.estimate_agent_cost(prompt, len(images), len(social_urls))
     credit_service.ensure_can_afford(db, account_id, est, activity="profile_agent")
 
     result = await agent_service.run_agent_prompt(
-        db, profile, account_id, prompt.strip(), images
+        db, profile, account_id, prompt.strip(), images, social_urls
     )
     for activity in result.get("charge_activities", []):
         credit_service.charge_tokens(

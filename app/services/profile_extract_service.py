@@ -15,6 +15,8 @@ USERNAME_URL_PATTERNS = [
     (r"(?:https?://)?(?:www\.)?tiktok\.com/@([\w.\-]+)", "tiktok"),
 ]
 
+URL_IN_TEXT_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
+
 FACEBOOK_RESERVED = {
     "pages", "groups", "events", "watch", "marketplace", "gaming",
     "profile.php", "photo.php", "story.php", "share", "login",
@@ -189,6 +191,40 @@ async def enrich_extracted_profile(data: dict) -> dict:
                 }
 
     return normalize_extracted_profile(result)
+
+
+def extract_urls_from_text(text: str) -> list[str]:
+    """Pull http(s) URLs from free text (paste, prompts, drag-drop)."""
+    if not text:
+        return []
+    seen: set[str] = set()
+    urls: list[str] = []
+    for match in URL_IN_TEXT_RE.finditer(text):
+        url = match.group(0).rstrip(".,);]>\"'")
+        if url and url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
+
+
+def parse_social_profile_url(url: str) -> dict | None:
+    """Return platform/username/canonical profile URL when URL matches a social pattern."""
+    username, platform = _username_from_urls(url)
+    if not username or not platform:
+        return None
+    canonical = {
+        "facebook": f"https://facebook.com/{username}",
+        "instagram": f"https://instagram.com/{username}",
+        "linkedin": f"https://linkedin.com/in/{username}",
+        "x": f"https://x.com/{username}",
+        "tiktok": f"https://tiktok.com/@{username}",
+    }.get(platform, url.strip())
+    return {
+        "platform": platform,
+        "username": username,
+        "profile_url": canonical,
+        "source_url": url.strip(),
+    }
 
 
 def default_enrich_platforms(profile) -> list[str]:

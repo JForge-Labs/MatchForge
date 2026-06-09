@@ -1,11 +1,10 @@
 """Screenshot vision analysis via xAI Grok."""
 import json
 import logging
-from io import BytesIO
 from pathlib import Path
 
 import httpx
-from PIL import Image
+from app.utils.image import save_jpeg
 
 from app.services import llm_service
 
@@ -180,8 +179,5 @@ def save_screenshot(image_bytes: bytes, profile_id: int, index: int) -> str:
     upload_dir = Path("data/uploads") / str(profile_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
     path = upload_dir / f"screenshot_{index}.jpg"
-    img = Image.open(BytesIO(image_bytes))
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    img.save(path, format="JPEG", quality=90)
+    save_jpeg(image_bytes, path)
     return str(path)

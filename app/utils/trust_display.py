@@ -1,5 +1,58 @@
 """Format trust/vetting data for dashboard cards."""
+from urllib.parse import urlparse
+
 from app.services.vetting_service import compute_trust_summary
+
+
+def _normalize_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    raw = url.strip().rstrip("/")
+    if not raw:
+        return None
+    if raw.startswith("http://"):
+        raw = "https://" + raw[7:]
+    elif not raw.startswith("https://"):
+        raw = f"https://{raw}"
+    parsed = urlparse(raw)
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = parsed.path.rstrip("/") or ""
+    return f"{host}{path}".lower()
+
+
+def _profile_source_url(profile) -> str | None:
+    extracted = profile.extracted_data or {}
+    url = extracted.get("profile_url")
+    if url:
+        return url
+    username = (profile.username or "").strip()
+    platform = (profile.platform or "").lower()
+    if username and platform == "facebook":
+        return f"https://facebook.com/{username}"
+    return None
+
+
+def _dedupe_profile_links(profile, enrichments: list) -> tuple[str | None, list]:
+    """Hide source link when the same URL already appears in enrichment chips."""
+    source_url = _profile_source_url(profile)
+    normalized_source = _normalize_url(source_url)
+
+    seen: set[str] = set()
+    deduped: list = []
+    for enrichment in enrichments:
+        normalized = _normalize_url(getattr(enrichment, "url", None))
+        if normalized:
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+        deduped.append(enrichment)
+
+    show_source = source_url
+    if normalized_source and normalized_source in seen:
+        show_source = None
+    return show_source, deduped
 
 
 def trust_card_context(profile, ranking) -> dict:
@@ -24,6 +77,7 @@ def trust_card_context(profile, ranking) -> dict:
     loc = vetting.get("location") or {}
     web = vetting.get("web") or {}
     enrichments = profile.social_enrichments or []
+    source_url, deduped_enrichments = _dedupe_profile_links(profile, enrichments)
 
     return {
         "overall_trust": summary["overall_trust_score"],
@@ -40,6 +94,7 @@ def trust_card_context(profile, ranking) -> dict:
         "web_url": web.get("search_url"),
         "web_status": web.get("status"),
         "risk_factors": summary.get("risk_factors", [])[:4],
-        "enrichments": enrichments,
+        "source_url": source_url,
+        "enrichments": deduped_enrichments,
         "enrichment_status": profile.enrichment_status,
     }

@@ -603,6 +603,31 @@ body.profile-panel-open { overflow: hidden; }
   padding: 0.5rem 0.75rem 0;
 }
 
+.agent-attachment-chip.url-chip {
+  width: auto;
+  max-width: 14rem;
+  height: auto;
+  min-height: 2rem;
+  padding: 0.35rem 1.6rem 0.35rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.agent-url-link {
+  color: var(--accent);
+  font-size: 0.78rem;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 12rem;
+}
+
+.agent-url-link:hover { text-decoration: underline; }
+
 .agent-attachment-chip {
   position: relative;
   width: 3.25rem;
