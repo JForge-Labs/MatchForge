@@ -1,4 +1,5 @@
 """Public social media enrichment via web search (works without Playwright)."""
+import asyncio
 import logging
 import re
 from urllib.parse import quote_plus
@@ -236,22 +237,25 @@ async def enrich_profile(
     query = build_enrichment_query(profile)
     if not query:
         query = (profile.name or "").strip()
+    findings_list = await asyncio.gather(
+        *[_search_platform(platform, query) for platform in platforms]
+    )
     enrichments: list[SocialEnrichment] = []
 
-    for platform in platforms:
-        findings = await _search_platform(platform, query)
+    for platform, findings in zip(platforms, findings_list):
         username = (findings.get("usernames") or [None])[0]
         if not username and platform == (profile.platform or "").lower():
             username = profile.username
 
-        enrichment = SocialEnrichment(
-            profile_id=profile.id,
-            platform=platform,
-            username=username,
-            url=_profile_url(platform, username, findings.get("search_url")),
-            summary=_summarize_findings(platform, findings),
-            findings=findings,
+        enrichments.append(
+            SocialEnrichment(
+                profile_id=profile.id,
+                platform=platform,
+                username=username,
+                url=_profile_url(platform, username, findings.get("search_url")),
+                summary=_summarize_findings(platform, findings),
+                findings=findings,
+            )
         )
-        enrichments.append(enrichment)
 
     return enrichments

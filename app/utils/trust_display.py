@@ -76,7 +76,17 @@ def trust_card_context(profile, ranking) -> dict:
 
     loc = vetting.get("location") or {}
     web = vetting.get("web") or {}
-    enrichments = profile.social_enrichments or []
+    enrichments = list(profile.social_enrichments or [])
+    web_socials = web.get("social_links") or []
+    if not enrichments and web_socials:
+        class _WebEnrichment:
+            def __init__(self, link: dict):
+                self.platform = link.get("platform", "web")
+                self.url = link.get("url")
+                self.summary = link.get("username") or "Web match"
+
+        enrichments = [_WebEnrichment(link) for link in web_socials if link.get("url")]
+
     source_url, deduped_enrichments = _dedupe_profile_links(profile, enrichments)
 
     return {
