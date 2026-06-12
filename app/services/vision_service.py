@@ -23,7 +23,9 @@ Return ONLY valid JSON:
   "bio": "About/bio/intro text or null",
   "location": "city/area/live location or null",
   "hometown": "hometown if shown or null",
-  "work": "employer/job if shown or null",
+  "employer": "company/organization name ONLY if explicitly shown in Work/Employer/Company field — null otherwise",
+  "job_title": "job title ONLY if explicitly shown — null otherwise",
+  "work": "verbatim Work/Employer line from profile if shown, else null (do NOT guess from name)",
   "education": "school/university if shown or null",
   "platform": "tinder|bumble|hinge|okcupid|facebook|instagram|linkedin|x|tiktok|other",
   "prompts": ["other visible profile fields or prompt Q&A"],
@@ -41,6 +43,13 @@ For Facebook specifically:
 - The large name at top is "name"; the vanity slug in URLs is "username" (they differ)
 - Capture About, Intro, Work, Education, Places lived, Relationship status into bio/prompts/work/education/hometown
 - Do NOT return the literal string "unknown" — use null when not visible
+
+ACCURACY RULES (critical):
+- Display names and usernames are identifiers only — NEVER infer profession, business ownership, or employer from a name or handle alone (e.g. name "Lashes" does NOT imply a lash business unless Work/Employer explicitly says so).
+- employer, job_title, and work must come ONLY from labeled Work/Employer/Company/Job fields visible on screen — use their exact wording. If not shown, use null.
+- Do not invent employers, side businesses, or careers from wordplay on names, nicknames, or usernames.
+- red_flags and green_flags must cite visible profile text or photos — not name-based assumptions.
+- When both a nickname and a formal employer appear, report the employer field verbatim; do not replace it with a name-based guess.
 
 Be thorough but factual. Only include what is actually visible."""
 

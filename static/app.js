@@ -4,6 +4,79 @@ const fileSelectedEl = document.getElementById("file-selected");
 const uploadForm = document.getElementById("upload-form");
 const uploadStatus = document.getElementById("upload-status");
 const uploadBtn = document.getElementById("upload-btn");
+const uploadSection = document.getElementById("upload-section");
+const uploadProgress = document.getElementById("upload-progress");
+const uploadProgressStep = document.getElementById("upload-progress-step");
+const dropZoneOverlay = document.getElementById("drop-zone-overlay");
+
+const UPLOAD_STEPS = [
+  "Reading screenshots…",
+  "Extracting names, employers, and bios…",
+  "Running trust vetting on photos…",
+  "Searching public footprint…",
+  "Ranking compatibility for you…",
+];
+
+const AGENT_STEPS = [
+  "Ingesting your attachments…",
+  "Re-running trust signals…",
+  "Searching Brave for public matches…",
+  "Updating your vet report…",
+];
+
+let uploadInFlight = false;
+let uploadStepTimer = null;
+let uploadStepIndex = 0;
+
+function startStepCycler(stepEl, steps) {
+  if (!stepEl || !steps.length) return null;
+  let index = 0;
+  stepEl.textContent = steps[0];
+  stepEl.style.opacity = "1";
+  return window.setInterval(() => {
+    index = (index + 1) % steps.length;
+    stepEl.style.opacity = "0";
+    window.setTimeout(() => {
+      stepEl.textContent = steps[index];
+      stepEl.style.opacity = "1";
+    }, 180);
+  }, 2800);
+}
+
+function startUploadProgress(fileCount) {
+  uploadInFlight = true;
+  uploadSection?.classList.add("processing");
+  uploadProgress?.classList.remove("hidden");
+  dropZoneOverlay?.classList.remove("hidden");
+  uploadBtn.disabled = true;
+  uploadBtn.setAttribute("aria-busy", "true");
+  uploadBtn.textContent = "Analyzing…";
+  if (fileInput) fileInput.disabled = true;
+  uploadStepIndex = 0;
+  if (uploadStepTimer) clearInterval(uploadStepTimer);
+  uploadStepTimer = startStepCycler(uploadProgressStep, UPLOAD_STEPS);
+  showStatus(
+    `Processing ${fileCount} screenshot${fileCount === 1 ? "" : "s"} — vision, trust, and ranking in flight.`,
+    "processing"
+  );
+}
+
+function stopUploadProgress(resetButton = true) {
+  uploadInFlight = false;
+  if (uploadStepTimer) {
+    clearInterval(uploadStepTimer);
+    uploadStepTimer = null;
+  }
+  uploadSection?.classList.remove("processing");
+  uploadProgress?.classList.add("hidden");
+  dropZoneOverlay?.classList.add("hidden");
+  uploadBtn.removeAttribute("aria-busy");
+  if (fileInput) fileInput.disabled = false;
+  if (resetButton) {
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = "Analyze & Rank";
+  }
+}
 
 function updateFileSelection() {
   if (!fileInput || !fileSelectedEl) return;
@@ -72,14 +145,14 @@ function parseErrorDetail(data) {
 if (uploadForm && fileInput) {
   uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (uploadInFlight) return;
     if (!fileInput.files.length) {
       showStatus("Select at least one screenshot.", "error");
       return;
     }
 
-    uploadBtn.disabled = true;
-    uploadBtn.textContent = "Analyzing…";
-    showStatus("Running Grok vision analysis + ranking…", "");
+    const fileCount = fileInput.files.length;
+    startUploadProgress(fileCount);
 
     const formData = new FormData();
     for (const file of fileInput.files) {
@@ -119,8 +192,7 @@ if (uploadForm && fileInput) {
     } catch (err) {
       const isCapacity = String(err.message || "").includes("influx of new users");
       showStatus(err.message, isCapacity ? "capacity" : "error");
-      uploadBtn.disabled = false;
-      uploadBtn.textContent = "Analyze & Rank";
+      stopUploadProgress(true);
     }
   });
 }
@@ -390,7 +462,29 @@ async function deleteProfile(profileId) {
   }
 }
 
+function agentPanel(profileId) {
+  return document.querySelector(`.agent-panel[data-profile-id="${profileId}"]`);
+}
+
+function ensureAgentBanner(panel) {
+  if (!panel) return null;
+  let banner = panel.querySelector(".agent-processing-banner");
+  if (!banner) {
+    banner = document.createElement("p");
+    banner.className = "agent-processing-banner hidden";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
+    panel.appendChild(banner);
+  }
+  return banner;
+}
+
+let agentInFlight = new Set();
+let agentStepTimers = new Map();
+
 async function submitAgent(profileId) {
+  if (agentInFlight.has(String(profileId))) return;
+
   const promptEl = document.getElementById(`agent-prompt-${profileId}`);
   const prompt = promptEl?.value?.trim() || "";
   const files = getAgentFiles(profileId);
@@ -400,12 +494,29 @@ async function submitAgent(profileId) {
     return;
   }
 
+  const panel = agentPanel(profileId);
+  const banner = ensureAgentBanner(panel);
+  const runBtn = panel?.querySelector(".agent-row .btn.primary");
+  const key = String(profileId);
+  agentInFlight.add(key);
+  panel?.classList.add("processing");
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.setAttribute("aria-busy", "true");
+    runBtn.textContent = "Working…";
+  }
+  if (banner) {
+    banner.classList.remove("hidden");
+    const timer = startStepCycler(banner, AGENT_STEPS);
+    if (timer) agentStepTimers.set(key, timer);
+  }
+
   const body = new FormData();
   body.append("prompt", prompt);
   for (const file of files) body.append("files", file);
   for (const url of socialUrls) body.append("urls", url);
 
-  showStatus("Agent running…", "");
+  showStatus("Agent running — trust vet and public search in progress…", "processing");
   try {
     const resp = await fetch(`/profiles/${profileId}/agent`, {
       method: "POST",
@@ -422,6 +533,18 @@ async function submitAgent(profileId) {
     setTimeout(() => window.location.reload(), 1800);
   } catch (err) {
     showStatus(err.message, "error");
+  } finally {
+    const timer = agentStepTimers.get(key);
+    if (timer) clearInterval(timer);
+    agentStepTimers.delete(key);
+    agentInFlight.delete(key);
+    panel?.classList.remove("processing");
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.removeAttribute("aria-busy");
+      runBtn.textContent = "Run agent";
+    }
+    banner?.classList.add("hidden");
   }
 }
 

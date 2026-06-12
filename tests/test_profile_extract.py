@@ -10,6 +10,7 @@ from app.services.profile_extract_service import (
     extract_urls_from_text,
     normalize_extracted_profile,
     parse_social_profile_url,
+    sanitize_profile_inferences,
 )
 
 
@@ -47,6 +48,20 @@ def test_extract_urls_from_text():
         "https://instagram.com/cool.handle",
         "https://x.com/someone",
     ]
+
+
+def test_sanitize_name_derived_lash_business_prefers_employer():
+    raw = {
+        "name": "Lashes",
+        "employer": "Smith & Co Accounting",
+        "work": "lash extension business",
+        "bio": "CPA at Smith & Co Accounting. Austin, TX.",
+        "platform": "facebook",
+    }
+    out = sanitize_profile_inferences(normalize_extracted_profile(raw))
+    work = (out.get("work") or "").lower()
+    assert "accounting" in work
+    assert "lash" not in work
 
 
 def test_parse_social_profile_url_instagram():

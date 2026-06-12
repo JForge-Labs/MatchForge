@@ -39,6 +39,8 @@ PHOTO TRUST ANALYSES:
 
 BIO: {bio}
 
+Only cite employers and jobs if they appear in the bio or photo context above — never infer from names alone.
+
 SOCIAL ENRICHMENT:
 {social_findings}
 

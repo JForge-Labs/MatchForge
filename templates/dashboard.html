@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block content %}
-<section class="upload-section">
+<section id="upload-section" class="upload-section">
   <h2>Upload Screenshots</h2>
   <p>Drag dating or social profile screenshots here (Tinder, Bumble, Facebook, Instagram, etc.). Analysis uses Grok vision — ~12 tokens per profile upload.</p>
   <form id="upload-form" enctype="multipart/form-data">
@@ -22,9 +22,26 @@
       <input type="file" id="file-input" name="files" multiple accept="image/*">
       <p class="drop-hint">Drop screenshots here or <span class="link">click to browse</span></p>
       <p id="file-selected" class="file-selected hidden" aria-live="polite"></p>
+      <div id="drop-zone-overlay" class="drop-zone-overlay hidden" aria-hidden="true">
+        <span class="pulse-ring"></span>
+        <span class="overlay-label">Analyzing…</span>
+      </div>
     </div>
-    <button type="submit" id="upload-btn" class="btn primary">Analyze &amp; Rank</button>
+    <button type="submit" id="upload-btn" class="btn primary" aria-describedby="upload-progress">Analyze &amp; Rank</button>
   </form>
+  <div id="upload-progress" class="upload-progress hidden" role="status" aria-live="polite">
+    <div class="upload-progress-header">
+      <span class="upload-progress-orbit" aria-hidden="true"></span>
+      <div>
+        <p class="upload-progress-title">MatchForge is working</p>
+        <p id="upload-progress-step" class="upload-progress-step">Reading screenshots…</p>
+      </div>
+    </div>
+    <div class="upload-progress-track" aria-hidden="true">
+      <div class="upload-progress-bar"></div>
+    </div>
+    <p class="upload-progress-hint">Usually 30–90 seconds per profile. Please don’t click Analyze again — you’ll only queue duplicate charges.</p>
+  </div>
   <div id="upload-status" class="status hidden"></div>
 </section>
 
