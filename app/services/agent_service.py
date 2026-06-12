@@ -130,14 +130,14 @@ def _apply_user_vouch(profile: Profile, parsed: dict) -> None:
     profile.bot_risk_score = adjusted
 
 
-async def _process_profile_image(
+async def _ingest_profile_screenshot(
     db: Session,
     profile: Profile,
     image_bytes: bytes,
     *,
     account_id: int,
 ) -> tuple[dict, str]:
-    """Ingest another platform screenshot onto this tile."""
+    """Extract and merge a platform screenshot — trust runs once after all images."""
     analysis = await vision_service.analyze_screenshot(image_bytes)
     photo_path = vision_service.save_screenshot(
         image_bytes, profile.id, len(profile.photos or [])
@@ -148,22 +148,6 @@ async def _process_profile_image(
         photo_path=photo_path,
         photo_index=len(profile.photos or []),
     )
-    images = profile_merge_service.load_profile_photo_bytes(profile) or [image_bytes]
-    trust = await trust_service.analyze_profile_trust(
-        image_bytes_list=images,
-        bio=profile.bio or analysis.get("bio"),
-        profile_metadata={**(profile.extracted_data or {}), **analysis},
-    )
-    vetting = await vetting_service.vet_profile(
-        name=profile.name,
-        bio=profile.bio,
-        location=profile.location,
-        extracted_data=profile.extracted_data,
-        trust_analysis=trust,
-        run_web_search=False,
-    )
-    trust = vetting_service.merge_vetting_into_trust(trust, vetting)
-    profile_merge_service.merge_trust_into_profile(profile, trust)
 
     evidence = ProfileEvidence(
         profile_id=profile.id,
@@ -176,6 +160,70 @@ async def _process_profile_image(
     )
     db.add(evidence)
     return analysis, "profile_agent_image"
+
+
+async def _finalize_profile_vetting(
+    db: Session,
+    profile: Profile,
+    *,
+    run_social_enrich: bool,
+) -> list:
+    """Run trust, Brave web search, and optional social enrichment once."""
+    images = profile_merge_service.load_profile_photo_bytes(profile)
+    if not images:
+        return []
+
+    trust = await trust_service.analyze_profile_trust(
+        image_bytes_list=images,
+        bio=profile.bio,
+        profile_metadata=profile.extracted_data or {},
+    )
+    enrichments: list = []
+    if run_social_enrich:
+        enrichments = await social_enrich_service.enrich_profile(profile)
+        for enrichment in enrichments:
+            existing = (
+                db.query(SocialEnrichment)
+                .filter(
+                    SocialEnrichment.profile_id == profile.id,
+                    SocialEnrichment.platform == enrichment.platform,
+                )
+                .first()
+            )
+            if existing:
+                existing.username = enrichment.username
+                existing.url = enrichment.url
+                existing.summary = enrichment.summary
+                existing.findings = enrichment.findings
+            else:
+                db.add(enrichment)
+        db.flush()
+
+        if trust.get("photo_analyses"):
+            catfish = await trust_service.assess_catfish_risk(
+                trust["photo_analyses"], profile.bio, enrichments
+            )
+            trust["catfish_analysis"] = catfish
+            trust["social_mismatch"] = catfish.get("social_mismatch", False)
+            trust["catfish_risk_score"] = catfish.get("catfish_risk_score")
+            trust["authenticity_score"] = catfish.get("authenticity_score")
+            trust["consistency_score"] = catfish.get("consistency_score")
+            trust["risk_factors"] = catfish.get("risk_factors", [])
+
+    vetting = await vetting_service.vet_profile(
+        name=profile.name,
+        bio=profile.bio,
+        location=profile.location,
+        extracted_data=profile.extracted_data,
+        trust_analysis=trust,
+        social_enrichments=enrichments,
+        run_web_search=True,
+    )
+    trust = vetting_service.merge_vetting_into_trust(trust, vetting)
+    profile_merge_service.merge_trust_into_profile(profile, trust)
+    if run_social_enrich:
+        profile.enrichment_status = "done"
+    return enrichments
 
 
 async def _process_social_url(
@@ -290,25 +338,23 @@ async def run_agent_prompt(
         tokens += route(act).token_cost
         url_summaries.append(parsed if isinstance(parsed, dict) else {"url": url})
 
+    message_mode = bool(
+        prompt and re.search(r"\b(message|chat|text|conversation|dm)\b", prompt, re.I)
+    )
+    profile_images: list[bytes] = []
+
     for img in images:
-        if _VET_RE.search(prompt) or len(images) == 1:
-            # Default: profile/platform screenshot enrich unless prompt says "message" or "chat"
-            if re.search(r"\b(message|chat|text|conversation|dm)\b", prompt, re.I):
-                parsed, act = await _process_message_image(
-                    db, profile, img, account_id=account_id
-                )
-                actions.append("message_screenshot")
-                charge_activities.append("message_screenshot")
-            else:
-                parsed, act = await _process_profile_image(
-                    db, profile, img, account_id=account_id
-                )
-                actions.append("profile_screenshot")
-                charge_activities.append("profile_agent_image")
-        else:
-            parsed, act = await _process_profile_image(
+        if message_mode:
+            parsed, act = await _process_message_image(
                 db, profile, img, account_id=account_id
             )
+            actions.append("message_screenshot")
+            charge_activities.append("message_screenshot")
+        else:
+            parsed, act = await _ingest_profile_screenshot(
+                db, profile, img, account_id=account_id
+            )
+            profile_images.append(img)
             actions.append("profile_screenshot")
             charge_activities.append("profile_agent_image")
         tokens += route(act).token_cost
@@ -335,9 +381,20 @@ async def run_agent_prompt(
         actions.append("agent_prompt")
 
     want_vet = bool(parsed_agent.get("request_deep_vet")) or (
-        prompt and _VET_RE.search(prompt) and not images and not social_urls
-    )
-    if want_vet:
+        prompt and _VET_RE.search(prompt)
+    ) or bool(profile_images)
+    enrichment_ran_inline = False
+
+    if profile_images:
+        charge_activities.append("deep_vet")
+        tokens += route("deep_vet").token_cost
+        await _finalize_profile_vetting(
+            db, profile, run_social_enrich=want_vet
+        )
+        enrichment_ran_inline = want_vet
+        actions.append("profile_vet_complete" if want_vet else "profile_trust_complete")
+
+    if want_vet and not enrichment_ran_inline:
         charge_activities.append("deep_vet")
         tokens += route("deep_vet").token_cost
         actions.append("deep_vet_queued")
@@ -393,6 +450,7 @@ async def run_agent_prompt(
         "tokens_spent_total": profile_tokens_spent(profile, db),
         "interpretation": parsed_agent.get("interpretation"),
         "summary": parsed_agent.get("summary"),
-        "request_deep_vet": want_vet,
+        "request_deep_vet": want_vet and not enrichment_ran_inline,
         "enrichment_status": profile.enrichment_status,
+        "vetting_complete": enrichment_ran_inline,
     }

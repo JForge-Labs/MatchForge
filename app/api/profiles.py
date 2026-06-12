@@ -203,7 +203,7 @@ async def profile_agent(
     profile_id: int,
     background_tasks: BackgroundTasks,
     prompt: str = Form(""),
-    files: list[UploadFile] = File(default=[]),
+    files: Annotated[list[UploadFile], File()] = [],
     urls: Annotated[list[str], Form()] = [],
     db: Session = Depends(get_db),
 ):

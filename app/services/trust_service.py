@@ -1,4 +1,5 @@
 """Authenticity, catfish, filter, and bot-trust scoring orchestration."""
+import asyncio
 import json
 import logging
 import re
@@ -149,12 +150,11 @@ async def analyze_profile_trust(
     social_enrichments: list | None = None,
 ) -> dict:
     """Full trust pipeline: per-photo vision + bot text + catfish synthesis."""
-    photo_analyses: list[dict] = []
-    for img in image_bytes_list:
-        auth = await vision_service.analyze_authenticity(img)
-        filters = await vision_service.detect_filters_and_edits(img)
-        merged = {**auth, **filters}
-        photo_analyses.append(merged)
+    photo_analyses = list(
+        await asyncio.gather(
+            *[vision_service.analyze_photo_trust(img) for img in image_bytes_list]
+        )
+    )
 
     bot = await detect_bot_signals(bio, profile_metadata or {})
 

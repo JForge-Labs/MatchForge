@@ -5,6 +5,9 @@ from urllib.parse import quote_plus
 
 import httpx
 
+from app.core.config import get_settings
+from app.services.social_enrich_service import PLATFORM_URL_PATTERNS
+
 logger = logging.getLogger(__name__)
 
 LOCATION_RE = re.compile(
@@ -90,23 +93,83 @@ def check_location_consistency(
     }
 
 
-async def web_footprint_search(
-    name: str | None,
-    location: str | None,
-    *,
-    username: str | None = None,
-    platform: str | None = None,
-) -> dict:
-    """Lightweight public web search for vetting (no browser required)."""
-    parts = [p for p in (username, name, location) if p]
-    if platform and platform not in ("other", ""):
-        parts.append(platform)
-    if not parts:
-        return {"status": "skipped", "snippets": [], "search_url": None}
+def _extract_social_links(*texts: str) -> list[dict]:
+    """Pull platform profile URLs from search result text."""
+    links: list[dict] = []
+    seen: set[str] = set()
+    for raw in texts:
+        if not raw:
+            continue
+        for platform, pattern in PLATFORM_URL_PATTERNS.items():
+            for match in pattern.finditer(raw):
+                username = match.group(1)
+                if username.lower() in ("pages", "groups", "profile.php"):
+                    continue
+                url = match.group(0)
+                if not url.startswith("http"):
+                    url = f"https://{url.lstrip('/')}"
+                key = f"{platform}:{username.lower()}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                links.append(
+                    {"platform": platform, "username": username, "url": url}
+                )
+    return links[:8]
 
-    query = " ".join(parts)
+
+async def _brave_web_search(query: str) -> dict | None:
+    """General name/location search via Brave Web Search API."""
+    if not get_settings().brave_api_key:
+        return None
+    findings: dict = {
+        "status": "empty",
+        "query": query,
+        "search_url": f"https://search.brave.com/search?q={quote_plus(query)}",
+        "snippets": [],
+        "social_links": [],
+        "provider": "brave",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            resp = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params={"q": query, "count": 12},
+                headers={
+                    "Accept": "application/json",
+                    "X-Subscription-Token": get_settings().brave_api_key,
+                },
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+
+        texts: list[str] = []
+        for result in (payload.get("web") or {}).get("results") or []:
+            title = result.get("title") or ""
+            description = result.get("description") or ""
+            url = result.get("url") or ""
+            snippet = " ".join(p for p in (title, description) if p).strip()
+            if snippet:
+                findings["snippets"].append(snippet[:300])
+            texts.extend([title, description, url])
+
+        findings["social_links"] = _extract_social_links(*texts)
+        findings["status"] = (
+            "ok"
+            if findings["snippets"] or findings["social_links"]
+            else "empty"
+        )
+        return findings
+    except Exception as exc:
+        logger.warning("Brave web vetting search failed: %s", exc)
+        return None
+
+
+async def _duckduckgo_web_search(query: str) -> dict:
+    """Fallback public web search when Brave is unavailable."""
     search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
     snippets: list[str] = []
+    link_texts: list[str] = []
     try:
         async with httpx.AsyncClient(
             timeout=20.0,
@@ -120,26 +183,53 @@ async def web_footprint_search(
                 r'class="result__snippet"[^>]*>([^<]+)<', html
             )[:5]:
                 snippets.append(block.strip()[:300])
-        status = "ok" if snippets else "empty"
+            link_texts = re.findall(
+                r'class="result__a"[^>]*href="([^"]+)"', html
+            )[:10]
+        status = "ok" if snippets or link_texts else "empty"
     except Exception as exc:
         logger.warning("Web vetting search failed: %s", exc)
         status = "error"
         snippets = [str(exc)]
-
-    location_hits: list[str] = []
-    if location:
-        loc_norm = _normalize_location(location)
-        for snip in snippets:
-            if loc_norm and loc_norm.split()[0] in snip.lower():
-                location_hits.append(snip[:120])
 
     return {
         "status": status,
         "query": query,
         "search_url": search_url,
         "snippets": snippets,
-        "location_mentions": location_hits,
+        "social_links": _extract_social_links(*snippets, *link_texts),
+        "provider": "duckduckgo",
     }
+
+
+async def web_footprint_search(
+    name: str | None,
+    location: str | None,
+    *,
+    username: str | None = None,
+    platform: str | None = None,
+) -> dict:
+    """Public web search for vetting — Brave API preferred, DuckDuckGo fallback."""
+    parts = [p for p in (name, location) if p]
+    if username and username not in parts:
+        parts.insert(0, username)
+    if not parts:
+        return {"status": "skipped", "snippets": [], "search_url": None, "social_links": []}
+
+    query = " ".join(parts)
+    brave = await _brave_web_search(query)
+    result = brave if brave else await _duckduckgo_web_search(query)
+    result.setdefault("social_links", [])
+
+    location_hits: list[str] = []
+    if location:
+        loc_norm = _normalize_location(location)
+        for snip in result.get("snippets") or []:
+            if loc_norm and loc_norm.split()[0] in snip.lower():
+                location_hits.append(snip[:120])
+    result["location_mentions"] = location_hits
+    result["query"] = query
+    return result
 
 
 def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:

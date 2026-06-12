@@ -60,6 +60,25 @@ Return ONLY valid JSON:
   "explanation": "1-2 sentence authenticity assessment"
 }"""
 
+TRUST_PHOTO_PROMPT = """Analyze this dating profile photo for authenticity, filters, and editing in one pass.
+
+Look for AI-generated faces, deepfakes, stolen photos, beauty filters, skin smoothing,
+FaceApp effects, body reshaping, and heavy enhancement.
+
+Return ONLY valid JSON:
+{
+  "authenticity_score": 0-100 (higher = more likely a real, unmanipulated person),
+  "ai_generated_likelihood": 0-100 (higher = more likely AI-generated),
+  "real_photo_confidence": 0-100,
+  "naturalness_score": 0-100 (higher = more natural, minimal editing),
+  "filter_heaviness": 0-100 (higher = heavier filtering/editing detected),
+  "visual_red_flags": ["specific authenticity or editing concerns"],
+  "positive_trust_signals": ["signals suggesting genuine photo"],
+  "editing_tools_detected": ["specific tools or effects suspected"],
+  "edit_regions": ["face", "body", "background", etc.],
+  "explanation": "1-2 sentence combined authenticity and editing assessment"
+}"""
+
 FILTER_DETECTION_PROMPT = """Analyze this dating profile photo for filters, editing, and enhancement.
 
 Look for: beauty filters, skin smoothing, FaceApp effects, body reshaping,
@@ -102,6 +121,26 @@ async def _vision_analyze(
     return result
 
 
+async def analyze_photo_trust(image_bytes: bytes) -> dict:
+    """Single vision call for authenticity + filter/editing signals."""
+    try:
+        return await _vision_analyze(TRUST_PHOTO_PROMPT, image_bytes)
+    except Exception as exc:
+        logger.warning("Combined photo trust analysis failed: %s", exc)
+        return {
+            "authenticity_score": 50,
+            "ai_generated_likelihood": 30,
+            "real_photo_confidence": 50,
+            "naturalness_score": 60,
+            "filter_heaviness": 25,
+            "visual_red_flags": [],
+            "positive_trust_signals": [],
+            "editing_tools_detected": [],
+            "edit_regions": [],
+            "explanation": "Photo trust check unavailable.",
+        }
+
+
 async def analyze_authenticity(image_bytes: bytes) -> dict:
     """Vision analysis for AI-generated vs real photos."""
     try:
@@ -139,11 +178,11 @@ async def assess_catfish_risk(
     """Per-photo trust analysis aggregated for catfish risk (vision-only)."""
     from app.services.trust_service import assess_catfish_risk as synthesize
 
-    photo_analyses: list[dict] = []
-    for img in profile_images:
-        auth = await analyze_authenticity(img)
-        filters = await detect_filters_and_edits(img)
-        photo_analyses.append({**auth, **filters})
+    import asyncio
+
+    photo_analyses = list(
+        await asyncio.gather(*[analyze_photo_trust(img) for img in profile_images])
+    )
     return await synthesize(photo_analyses, bio_text, [])
 
 
