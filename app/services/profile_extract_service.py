@@ -62,9 +62,91 @@ def _collect_strings(data: object) -> list[str]:
     return found
 
 
+def _normalize_token(value: str | None) -> str | None:
+    if not value:
+        return None
+    token = value.strip().lower()
+    if not token or token in ("unknown", "null", "none", "n/a"):
+        return None
+    return token
+
+
+def _significant_words(text: str) -> list[str]:
+    return [w for w in re.split(r"\W+", text.lower()) if len(w) > 3]
+
+
+def _work_supported_by_visible_text(work: str, visible: str) -> bool:
+    """True when most significant words from work appear in visible profile text."""
+    if not work:
+        return True
+    words = _significant_words(work)
+    if not words:
+        return True
+    matches = sum(1 for word in words if word in visible)
+    return matches >= max(1, len(words) // 2)
+
+
+def _name_echoes_work(work: str, name: str | None, username: str | None) -> bool:
+    """Detect occupation guesses that echo the display name/handle."""
+    work_low = work.lower()
+    for token in (name, username):
+        if not token or len(token) < 4:
+            continue
+        stem = token[: max(4, len(token) - 1)]
+        if stem in work_low or token in work_low:
+            return True
+    return False
+
+
+def sanitize_profile_inferences(data: dict) -> dict:
+    """Drop name-derived employer guesses when explicit employer text exists."""
+    result = dict(data)
+    visible = _merge_text_fields(result).lower()
+    visible += "\n" + "\n".join(_collect_strings(result)).lower()
+
+    employer = (result.get("employer") or "").strip()
+    job_title = (result.get("job_title") or "").strip()
+    work = (result.get("work") or "").strip()
+    name = _normalize_token(result.get("name"))
+    username = _normalize_token(result.get("username"))
+
+    if employer and not work:
+        work = employer
+    elif employer and job_title:
+        work = f"{job_title} at {employer}"
+    elif employer:
+        work = employer
+
+    if work:
+        unsupported = not _work_supported_by_visible_text(work, visible)
+        name_guess = _name_echoes_work(work, name, username)
+        if unsupported or name_guess:
+            if employer and _work_supported_by_visible_text(employer, visible):
+                work = f"{job_title} at {employer}".strip(" at ") if job_title else employer
+            elif employer:
+                work = employer
+            elif unsupported and name_guess:
+                work = ""
+            elif name_guess:
+                work = ""
+
+    if work:
+        result["work"] = work
+    else:
+        result.pop("work", None)
+    if employer:
+        result["employer"] = employer
+    if job_title:
+        result["job_title"] = job_title
+    return result
+
+
 def _merge_text_fields(data: dict) -> str:
     chunks: list[str] = []
-    for key in ("bio", "about", "work", "education", "hometown", "relationship_status"):
+    for key in (
+        "bio", "about", "work", "employer", "job_title",
+        "education", "hometown", "relationship_status",
+    ):
         val = data.get(key)
         if isinstance(val, str) and val.strip():
             chunks.append(val)
@@ -115,7 +197,7 @@ def normalize_extracted_profile(data: dict) -> dict:
     if username and not result.get("profile_url") and result.get("platform") == "facebook":
         result["profile_url"] = f"https://facebook.com/{username}"
 
-    return result
+    return sanitize_profile_inferences(result)
 
 
 def build_enrichment_query_from_data(data: dict, *, platform: str | None = None) -> str:

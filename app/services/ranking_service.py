@@ -31,6 +31,7 @@ TRUST / AUTHENTICITY SIGNALS:
 {trust_data}
 
 Score this candidate FOR THIS SPECIFIC USER — not generically.
+ACCURACY: Only cite employers, jobs, and lifestyle facts explicitly present in PROFILE TO EVALUATE (bio, work, employer, prompts, vision_analysis). Never infer occupation or business ownership from display names or usernames alone.
 Apply strong penalties for high catfish_risk, bot_risk, AI-generated photos, or heavy filters.
 Boost profiles with high authenticity and naturalness scores.
 Weight compatibility, attractiveness, and red flags per their intentions:

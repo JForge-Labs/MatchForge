@@ -49,7 +49,8 @@ Return ONLY valid JSON:
 Rules:
 - request_deep_vet=true only when user asks for public/social footprint, deep vet, background check, or cross-platform lookup.
 - user_vouches_real=true when user explicitly says they know this person is real/human (lowers false bot positives).
-- Do not invent facts not supported by profile data or user input."""
+- Do not invent facts not supported by profile data or user input.
+- Never infer employer, business, or profession from display names/usernames alone — only explicit work/employer fields or user-provided evidence."""
 
 _VET_RE = re.compile(
     r"\b(deep\s*vet|vet\s+them|public\s+footprint|social\s+enrich|background\s+check|"
