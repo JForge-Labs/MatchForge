@@ -1,4 +1,5 @@
 from app.models.account import Account, AuthToken
+from app.models.affiliate import Affiliate, AffiliateCommission
 from app.models.credits import AccountCredit, CreditTransaction
 from app.models.referral import Referral
 from app.models.profile import (
@@ -13,6 +14,8 @@ from app.models.user import UserProfile
 
 __all__ = [
     "Account",
+    "Affiliate",
+    "AffiliateCommission",
     "AuthToken",
     "AccountCredit",
     "CreditTransaction",

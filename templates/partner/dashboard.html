@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Partner dashboard — MatchForge{% endblock %}
+
+{% block content %}
+<section class="admin-dashboard partner-dashboard">
+  <h1>{{ affiliate.name }}</h1>
+  <p class="section-lead">
+  {{ affiliate.commission_rate_pct }}% commission on referred user purchases · read-only
+  </p>
+
+  <div class="admin-grid">
+    <article class="stat-card">
+      <h3>Signups</h3>
+      <p class="stat-value">{{ affiliate.signups_total }}</p>
+      <p class="stat-sub">{{ affiliate.signups_verified }} verified</p>
+    </article>
+    <article class="stat-card">
+      <h3>Referred revenue</h3>
+      <p class="stat-value">${{ "%.2f"|format(affiliate.referred_revenue_cents / 100) }}</p>
+    </article>
+    <article class="stat-card">
+      <h3>Pending payout</h3>
+      <p class="stat-value">${{ "%.2f"|format(affiliate.pending_commission_cents / 100) }}</p>
+    </article>
+    <article class="stat-card">
+      <h3>Paid to date</h3>
+      <p class="stat-value">${{ "%.2f"|format(affiliate.paid_commission_cents / 100) }}</p>
+    </article>
+  </div>
+
+  <section class="admin-section">
+    <h2>Your signup link</h2>
+    <p class="auth-sub">Share this link so signups are attributed to you.</p>
+    <div class="referral-row">
+      <input type="text" id="partner-signup-link" readonly value="{{ affiliate.affiliate_url }}" class="referral-input">
+      <button type="button" class="btn secondary" id="copy-signup-link">Copy link</button>
+    </div>
+  </section>
+
+  <section class="admin-section">
+    <h2>Commission history</h2>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Referred user</th>
+            <th>Purchase</th>
+            <th>Your commission</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in commissions %}
+          <tr>
+            <td>{{ row.created_at[:16] if row.created_at else "—" }}</td>
+            <td>{{ row.referred_email_masked }}</td>
+            <td>${{ "%.2f"|format(row.gross_cents / 100) }}</td>
+            <td>${{ "%.2f"|format(row.commission_cents / 100) }}</td>
+            <td>
+              {% if row.status == 'paid' %}
+              <span class="admin-pill ok">paid</span>
+              {% else %}
+              <span class="admin-pill">pending</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">No commissions yet — share your signup link to get started.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="auth-sub">Pending commissions are paid manually by MatchForge. Contact us if you have questions.</p>
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("copy-signup-link")?.addEventListener("click", () => {
+  const input = document.getElementById("partner-signup-link");
+  if (!input) return;
+  navigator.clipboard.writeText(input.value);
+  const btn = document.getElementById("copy-signup-link");
+  const prev = btn.textContent;
+  btn.textContent = "Copied!";
+  setTimeout(() => { btn.textContent = prev; }, 1500);
+});
+</script>
+{% endblock %}
