@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.models.account import Account, AuthToken
 from app.models.profile import Profile
 from app.models.user import UserProfile
-from app.services import credit_service, email_service, referral_service
+from app.services import affiliate_service, credit_service, email_service, referral_service
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,11 @@ def _send_token_email(account: Account, purpose: str, raw_token: str) -> None:
 
 
 def request_signup(
-    db: Session, email: str, *, referral_code: str | None = None
+    db: Session,
+    email: str,
+    *,
+    referral_code: str | None = None,
+    affiliate_ref: str | None = None,
 ) -> tuple[str, str | None]:
     """Create or refresh a pending account and send verification email."""
     normalized = normalize_email(email)
@@ -88,9 +92,11 @@ def request_signup(
 
     if not account:
         referrer = referral_service.resolve_referrer(db, referral_code, normalized)
+        affiliate = affiliate_service.resolve_affiliate(db, affiliate_ref, normalized)
         account = Account(
             email=normalized,
             referred_by_account_id=referrer.id if referrer else None,
+            referred_by_affiliate_id=affiliate.id if affiliate else None,
         )
         db.add(account)
         db.commit()

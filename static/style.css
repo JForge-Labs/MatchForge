@@ -521,6 +521,20 @@ body.profile-panel-open { overflow: hidden; }
   max-width: 42rem;
 }
 .admin-grant-form .text-field { flex: 1; min-width: 8rem; margin: 0; }
+.affiliate-link-block { margin: 1rem 0 0.5rem; }
+.affiliate-link-label { font-size: 0.95rem; margin: 0 0 0.35rem; font-weight: 600; }
+.admin-muted { color: var(--muted); font-weight: 400; font-size: 0.85em; }
+.admin-cleanup-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2, rgba(255,255,255,0.03));
+}
+.admin-back-link { margin-left: 0.75rem; font-size: 0.9rem; }
 .admin-table-wrap { overflow-x: auto; }
 .admin-table {
   width: 100%;

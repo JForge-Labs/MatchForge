@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Affiliates — Admin — MatchForge{% endblock %}
+
+{% block content %}
+<section class="admin-dashboard">
+  <h1>Affiliate partners</h1>
+  <p class="section-lead">
+    Create partners here, share their signup link publicly and their dashboard link privately.
+    <a href="/admin" class="admin-back-link">← Admin home</a>
+  </p>
+
+  <section class="admin-section">
+    <h2>Add affiliate partner</h2>
+    <form id="create-affiliate-form" class="admin-grant-form">
+      <label class="text-field">
+        Slug <small>(URL code, e.g. jane-dating)</small>
+        <input type="text" id="aff-slug" name="slug" required pattern="[a-z0-9][a-z0-9-]{1,62}" placeholder="partner-name">
+      </label>
+      <label class="text-field">
+        Name
+        <input type="text" id="aff-name" name="name" required maxlength="128" placeholder="Partner display name">
+      </label>
+      <label class="text-field">
+        Contact email
+        <input type="email" id="aff-email" name="contact_email" required placeholder="partner@example.com">
+      </label>
+      <label class="text-field">
+        Commission %
+        <input type="number" id="aff-rate" name="commission_rate_pct" value="15" min="0.1" max="100" step="0.1">
+      </label>
+      <label class="text-field">
+        Notes <small>(optional)</small>
+        <input type="text" id="aff-notes" name="notes" maxlength="2000" placeholder="PayPal handle, contract ref, etc.">
+      </label>
+      <button type="submit" class="btn primary">Create affiliate</button>
+    </form>
+    <p id="create-affiliate-status" class="status hidden"></p>
+  </section>
+
+  {% if test_affiliate_count > 0 %}
+  <section class="admin-section admin-cleanup-banner">
+    <p>{{ test_affiliate_count }} test affiliate record(s) from the test suite are in the database.</p>
+    <button type="button" class="btn secondary" id="cleanup-test-affiliates">Remove test affiliates</button>
+  </section>
+  {% endif %}
+
+  {% for aff in affiliates %}
+  <article class="admin-section affiliate-card">
+    <div class="affiliate-card-header">
+      <h2>{{ aff.name }} <span class="admin-pill{% if aff.is_active %} ok{% endif %}">{{ aff.slug }}</span></h2>
+      <p class="auth-sub">{{ aff.contact_email }} · {{ aff.commission_rate_pct }}% commission</p>
+    </div>
+    <div class="admin-grid affiliate-stats-grid">
+      <article class="stat-card">
+        <h3>Signups</h3>
+        <p class="stat-value">{{ aff.signups_total }}</p>
+        <p class="stat-sub">{{ aff.signups_verified }} verified</p>
+      </article>
+      <article class="stat-card">
+        <h3>Referred revenue</h3>
+        <p class="stat-value">${{ "%.2f"|format(aff.referred_revenue_cents / 100) }}</p>
+      </article>
+      <article class="stat-card">
+        <h3>Pending payout</h3>
+        <p class="stat-value">${{ "%.2f"|format(aff.pending_commission_cents / 100) }}</p>
+      </article>
+      <article class="stat-card">
+        <h3>Paid lifetime</h3>
+        <p class="stat-value">${{ "%.2f"|format(aff.paid_commission_cents / 100) }}</p>
+      </article>
+    </div>
+
+    <div class="affiliate-link-block">
+      <h3 class="affiliate-link-label">Signup link <span class="admin-muted">— share with their audience</span></h3>
+      <div class="referral-row">
+        <input type="text" readonly value="{{ aff.affiliate_url }}" class="referral-input affiliate-signup-link">
+        <button type="button" class="btn secondary copy-signup-link">Copy signup link</button>
+      </div>
+    </div>
+
+    <div class="affiliate-link-block">
+      <h3 class="affiliate-link-label">Partner dashboard <span class="admin-muted">— share with the partner only (30-day link)</span></h3>
+      <div class="referral-row">
+        <input type="text" readonly value="{{ aff.partner_dashboard_url }}" class="referral-input affiliate-dashboard-link">
+        <button type="button" class="btn secondary copy-dashboard-link">Copy dashboard link</button>
+      </div>
+    </div>
+
+    <div class="referral-row">
+      <button type="button" class="btn secondary mark-all-paid" data-affiliate-id="{{ aff.id }}">Mark all pending paid</button>
+    </div>
+    {% if aff.notes %}
+    <p class="auth-sub">Notes: {{ aff.notes }}</p>
+    {% endif %}
+  </article>
+  {% else %}
+  <p class="auth-sub">No affiliates yet — use the form above to add your first partner.</p>
+  {% endfor %}
+
+  <section class="admin-section">
+    <h2>Commission ledger</h2>
+    <div class="admin-ledger-filters">
+      <label>
+        Affiliate
+        <select id="filter-affiliate">
+          <option value="">All</option>
+          {% for aff in affiliates %}
+          <option value="{{ aff.id }}"{% if filter_affiliate_id == aff.id %} selected{% endif %}>{{ aff.name }} ({{ aff.slug }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Status
+        <select id="filter-status">
+          <option value="">All</option>
+          <option value="pending"{% if filter_status == 'pending' %} selected{% endif %}>Pending</option>
+          <option value="paid"{% if filter_status == 'paid' %} selected{% endif %}>Paid</option>
+        </select>
+      </label>
+      <button type="button" class="btn secondary" id="filter-commissions">Filter</button>
+    </div>
+    <div class="admin-table-wrap">
+      <table class="admin-table" id="commissions-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="select-all-pending" title="Select pending rows"></th>
+            <th>When</th>
+            <th>Affiliate</th>
+            <th>Referred</th>
+            <th>Gross</th>
+            <th>Commission</th>
+            <th>Stripe ref</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in commissions %}
+          <tr data-commission-id="{{ row.id }}" data-affiliate-id="{{ row.affiliate_id }}" data-status="{{ row.status }}">
+            <td>
+              {% if row.status == 'pending' %}
+              <input type="checkbox" class="commission-select" value="{{ row.id }}">
+              {% endif %}
+            </td>
+            <td>{{ row.created_at[:16] if row.created_at else "—" }}</td>
+            <td>#{{ row.affiliate_id }}</td>
+            <td>{{ row.referred_email_masked }}</td>
+            <td>${{ "%.2f"|format(row.gross_cents / 100) }}</td>
+            <td>${{ "%.2f"|format(row.commission_cents / 100) }}</td>
+            <td><code class="stripe-ref">{{ row.stripe_ref[:20] }}{% if row.stripe_ref|length > 20 %}…{% endif %}</code></td>
+            <td>
+              {% if row.status == 'paid' %}
+              <span class="admin-pill ok">paid</span>
+              {% else %}
+              <span class="admin-pill">pending</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.status == 'pending' %}
+              <button type="button" class="btn-link mark-paid-one" data-id="{{ row.id }}">Mark paid</button>
+              {% elif row.payout_note %}
+              <span class="admin-muted" title="{{ row.payout_note }}">note</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9">No commissions yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="admin-ledger-actions">
+      <label class="text-field">
+        Payout note <small>(optional)</small>
+        <input type="text" id="payout-note" maxlength="256" placeholder="PayPal 2026-06-19">
+      </label>
+      <button type="button" class="btn primary" id="mark-selected-paid">Mark selected paid</button>
+    </div>
+    <p id="affiliate-status" class="status hidden"></p>
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/admin_affiliates.js"></script>
+{% endblock %}

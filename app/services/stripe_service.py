@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.account import Account
 from app.models.credits import CreditTransaction
-from app.services import credit_service, referral_service
+from app.services import credit_service, referral_service, affiliate_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -102,6 +102,12 @@ def credit_purchase(
         stripe_ref,
     )
     referral_service.mark_first_topup(db, account_id)
+    affiliate_service.record_commission(
+        db,
+        account_id=account_id,
+        stripe_ref=stripe_ref,
+        topup_usd=topup_usd,
+    )
     db.commit()
     return balance
 

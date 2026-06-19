@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.db import Base, SessionLocal, engine
 from app.services import credit_service
 from app.models.account import Account, AuthToken  # noqa: F401 — register tables
+from app.models.affiliate import Affiliate, AffiliateCommission  # noqa: F401
 from app.models.credits import AccountCredit, CreditTransaction  # noqa: F401
 from app.models.profile import PreferenceVector, ProfileEvidence  # noqa: F401
 from app.models.referral import Referral  # noqa: F401
@@ -107,6 +108,24 @@ def main() -> None:
     ]
     with engine.connect() as conn:
         for sql in v03_stmts:
+            conn.execute(text(sql))
+        conn.commit()
+
+    v06_stmts = [
+        "ALTER TABLE affiliates ADD COLUMN IF NOT EXISTS link_code VARCHAR(16)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_affiliates_link_code ON affiliates (link_code)",
+    ]
+    with engine.connect() as conn:
+        for sql in v06_stmts:
+            conn.execute(text(sql))
+        conn.commit()
+
+    v05_stmts = [
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS referred_by_affiliate_id INTEGER REFERENCES affiliates(id) ON DELETE SET NULL",
+        "CREATE INDEX IF NOT EXISTS ix_accounts_referred_by_affiliate_id ON accounts (referred_by_affiliate_id)",
+    ]
+    with engine.connect() as conn:
+        for sql in v05_stmts:
             conn.execute(text(sql))
         conn.commit()
 

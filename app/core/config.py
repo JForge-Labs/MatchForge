@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     xai_text_fast: str = "grok-4.20-0309-non-reasoning"
     xai_text_reason: str = "grok-4.20-0309-reasoning"
 
+    # Affiliate partners — revenue-share attribution via ?aff= links
+    affiliates_enabled: bool = True
+
     # Monetization — disable while iterating (no charges, no 402 walls)
     billing_enabled: bool = False
     signup_grant_tokens: int = 100

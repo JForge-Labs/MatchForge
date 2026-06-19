@@ -25,6 +25,7 @@ MatchForge helps you perform **personal safety and basic due diligence** on publ
 | Evidence & agent inputs | Optional notes and images you attach for vetting |
 | Policy acceptance | Timestamp and version proving your consent |
 | Referral codes | Token attribution only |
+| Affiliate links | Partner commission accounting for referred signups |
 
 We do **not** intentionally collect government ID, credit information, or precise GPS location unless you voluntarily enter optional fields.
 

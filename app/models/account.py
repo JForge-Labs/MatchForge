@@ -24,6 +24,9 @@ class Account(Base):
     referred_by_account_id: Mapped[int | None] = mapped_column(
         ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
     )
+    referred_by_affiliate_id: Mapped[int | None] = mapped_column(
+        ForeignKey("affiliates.id", ondelete="SET NULL"), nullable=True
+    )
 
     profile = relationship("UserProfile", back_populates="account", uselist=False)
     tokens = relationship("AuthToken", back_populates="account")
@@ -39,6 +42,16 @@ class Account(Base):
         foreign_keys="Referral.referred_account_id",
         back_populates="referred",
         uselist=False,
+    )
+    referred_by_affiliate = relationship(
+        "Affiliate",
+        foreign_keys=[referred_by_affiliate_id],
+        back_populates="referred_accounts",
+    )
+    affiliate_commissions = relationship(
+        "AffiliateCommission",
+        foreign_keys="AffiliateCommission.referred_account_id",
+        back_populates="referred_account",
     )
 
 

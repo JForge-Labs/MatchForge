@@ -15,6 +15,9 @@
     <input type="hidden" name="referral_code" value="{{ referral_code }}">
     <p class="auth-sub">You were referred to MatchForge — you'll get bonus tokens after you verify your email.</p>
     {% endif %}
+    {% if affiliate_ref %}
+    <input type="hidden" name="affiliate_ref" value="{{ affiliate_ref }}">
+    {% endif %}
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required autofocus autocomplete="email"
            placeholder="you@example.com" value="{{ email or '' }}">

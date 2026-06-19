@@ -13,7 +13,7 @@ from app.core.auth import (
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.services import account_service, capacity_service, email_service
-from app.services import onboarding_service
+from app.services import affiliate_service, onboarding_service
 from app.utils.legal import post_auth_path
 from app.utils.social_meta import REFERRAL_OG_DESCRIPTION, REFERRAL_OG_TITLE
 from app.utils.templates import render
@@ -29,38 +29,80 @@ def _auth_context(**extra):
     }
 
 
+@router.get("/join/{link_code}")
+def affiliate_join(link_code: str, db: Session = Depends(get_db)):
+    """Opaque affiliate entry — sets attribution cookie and redirects to signup."""
+    affiliate = affiliate_service.get_affiliate_by_ref(db, link_code)
+    if not affiliate or not affiliate_service.affiliates_enabled():
+        return RedirectResponse(url="/signup", status_code=302)
+    ref = affiliate_service.affiliate_join_ref(db, affiliate)
+    db.commit()
+    response = RedirectResponse(url="/signup", status_code=302)
+    response.set_cookie(
+        key=affiliate_service.AFFILIATE_COOKIE,
+        value=ref,
+        max_age=affiliate_service.AFFILIATE_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
 @router.get("/signup", response_class=HTMLResponse)
 def signup_page(
     request: Request,
     db: Session = Depends(get_db),
     error: str | None = None,
     ref: str | None = None,
+    aff: str | None = None,
 ):
     if is_authenticated(request):
         account_id = get_account_id(request)
         user = onboarding_service.get_or_create_user(db, account_id=account_id)
         return RedirectResponse(url=post_auth_path(user), status_code=302)
-    return render(
+
+    affiliate_ref = ""
+    if affiliate_service.affiliates_enabled():
+        if aff and affiliate_service.get_affiliate_by_ref(db, aff):
+            affiliate = affiliate_service.get_affiliate_by_ref(db, aff)
+            affiliate_ref = affiliate_service.affiliate_join_ref(db, affiliate)
+            db.commit()
+        elif request.cookies.get(affiliate_service.AFFILIATE_COOKIE):
+            cookie_ref = request.cookies.get(affiliate_service.AFFILIATE_COOKIE, "")
+            if affiliate_service.get_affiliate_by_ref(db, cookie_ref):
+                affiliate_ref = cookie_ref.strip()
+
+    og_extra = {}
+    if ref:
+        og_extra = {
+            "og_title": REFERRAL_OG_TITLE,
+            "og_description": REFERRAL_OG_DESCRIPTION,
+            "twitter_title": REFERRAL_OG_TITLE,
+            "twitter_description": REFERRAL_OG_DESCRIPTION,
+            "og_url": f"{get_settings().app_url.rstrip('/')}/signup?ref={ref}",
+        }
+
+    response = render(
         request,
         "signup.html",
         _auth_context(
             error=error,
             referral_code=ref or "",
+            affiliate_ref=affiliate_ref,
             referral_og_title=REFERRAL_OG_TITLE,
             referral_og_description=REFERRAL_OG_DESCRIPTION,
-            **(
-                {
-                    "og_title": REFERRAL_OG_TITLE,
-                    "og_description": REFERRAL_OG_DESCRIPTION,
-                    "twitter_title": REFERRAL_OG_TITLE,
-                    "twitter_description": REFERRAL_OG_DESCRIPTION,
-                    "og_url": f"{get_settings().app_url.rstrip('/')}/signup?ref={ref}",
-                }
-                if ref
-                else {}
-            ),
+            **og_extra,
         ),
     )
+    if affiliate_ref:
+        response.set_cookie(
+            key=affiliate_service.AFFILIATE_COOKIE,
+            value=affiliate_ref,
+            max_age=affiliate_service.AFFILIATE_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+        )
+    return response
 
 
 @router.post("/signup")
@@ -68,11 +110,18 @@ def signup_submit(
     request: Request,
     email: str = Form(...),
     referral_code: str = Form(""),
+    affiliate_ref: str = Form(""),
     db: Session = Depends(get_db),
 ):
     capacity_service.raise_if_overloaded(signup=True)
+    ref = affiliate_ref.strip() or request.cookies.get(
+        affiliate_service.AFFILIATE_COOKIE, ""
+    )
     status, dev_token = account_service.request_signup(
-        db, email, referral_code=referral_code or None
+        db,
+        email,
+        referral_code=referral_code or None,
+        affiliate_ref=ref or None,
     )
     if status == "invalid":
         return render(

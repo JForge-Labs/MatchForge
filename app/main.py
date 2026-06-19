@@ -22,6 +22,7 @@ from app.api import (
     legal,
     onboarding,
     pages,
+    partner,
     profiles,
     toolbox,
 )
@@ -53,6 +54,7 @@ app.include_router(billing.router)
 app.include_router(pages.router)
 app.include_router(legal.router)
 app.include_router(auth.router)
+app.include_router(partner.router)
 app.include_router(onboarding.router)
 app.include_router(toolbox.router)
 app.include_router(profiles.router)
