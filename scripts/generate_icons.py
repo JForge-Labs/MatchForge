@@ -73,7 +73,7 @@ def draw_og_card() -> Image.Image:
         sub_font = title_font
         brand_font = title_font
 
-    draw.text((300, 200), "Check this one out", fill=(232, 234, 237), font=title_font)
+    draw.text((300, 200), "MatchForge vetting summary", fill=(232, 234, 237), font=title_font)
     draw.text(
         (300, 290),
         "AI trust vetting on a dating profile",
