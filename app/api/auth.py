@@ -8,7 +8,6 @@ from app.core.auth import (
     is_authenticated,
     login_user,
     logout_user,
-    verify_password,
 )
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -160,43 +159,23 @@ def login_page(
     request: Request,
     next: str = "/dashboard",
     error: str | None = None,
-    mode: str = "email",
 ):
     if is_authenticated(request):
         return RedirectResponse(url=next, status_code=302)
     return render(
         request,
         "login.html",
-        _auth_context(next=next, error=error, mode=mode),
+        _auth_context(next=next, error=error),
     )
 
 
 @router.post("/login")
 def login_submit(
     request: Request,
-    mode: str = Form("email"),
     email: str = Form(""),
-    password: str = Form(""),
     next: str = Form("/dashboard"),
     db: Session = Depends(get_db),
 ):
-    if mode == "password":
-        if not verify_password(password):
-            return render(
-                request,
-                "login.html",
-                _auth_context(
-                    next=next,
-                    error="Incorrect password. Try again.",
-                    mode="password",
-                ),
-                status_code=401,
-            )
-        login_user(request)
-        account_id = get_account_id(request)
-        user = onboarding_service.get_or_create_user(db, account_id=account_id)
-        return RedirectResponse(url=post_auth_path(user), status_code=302)
-
     status, dev_token = account_service.request_login_link(db, email)
     if status == "invalid":
         return render(
@@ -205,7 +184,6 @@ def login_submit(
             _auth_context(
                 next=next,
                 error="Enter a valid email address.",
-                mode="email",
                 email=email,
             ),
             status_code=400,
@@ -217,7 +195,6 @@ def login_submit(
             _auth_context(
                 next=next,
                 error="No account found. Create one first.",
-                mode="email",
                 email=email,
             ),
             status_code=404,
@@ -268,7 +245,6 @@ def verify_email(
             "login.html",
             _auth_context(
                 error="This link is invalid or has expired. Request a new one.",
-                mode="email",
             ),
             status_code=400,
         )
