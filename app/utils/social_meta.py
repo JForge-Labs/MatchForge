@@ -2,11 +2,11 @@
 from app.core.config import get_settings
 
 SHARE_HOOKS = (
-    "Check this one out",
-    "Worth a look",
-    "Someone sent you a vetting summary",
-    "See what the AI flagged",
-    "Run this through MatchForge?",
+    "AI trust vetting on a dating profile",
+    "MatchForge profile breakdown",
+    "Private dating due diligence",
+    "Compatibility and trust signals",
+    "Vetting summary from MatchForge",
 )
 
 REFERRAL_OG_TITLE = "You're invited to MatchForge"
