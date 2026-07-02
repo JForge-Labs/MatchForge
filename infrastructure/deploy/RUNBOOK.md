@@ -76,6 +76,13 @@ doctl apps update a0817ef0-3412-4f03-858b-a89c987092ad --spec /tmp/matchforge-de
 
 ## Provision staging (one-time)
 
+> **Note:** staging (`matchforge-dev.app.yaml`) intentionally omits `X_BEARER_TOKEN`
+> and runs X verification on the Grok-only `x_search` path — the official X API
+> (pay-per-use) is enabled in **prod only** for the EXhibit. If you ever add the
+> `__X_BEARER_TOKEN__` placeholder to the staging template, also add the matching
+> `-e "s|__X_BEARER_TOKEN__|${X_BEARER_TOKEN:-}|g"` line to the sed below (or use
+> `render-spec.sh matchforge-dev.app.yaml`, which already substitutes it).
+
 ```bash
 source ~/.grok/secrets/digitalocean.env
 source ~/.grok/secrets/matchforge-prod.env
