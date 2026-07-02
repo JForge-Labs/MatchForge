@@ -1781,3 +1781,153 @@ main { padding-bottom: 3rem; }
   .privacy-callout { padding: 1.25rem; }
   .landing-cta { padding: 2rem 1.25rem; }
 }
+/* --- X verification (v2) --- */
+.x-logo {
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.x-lookup {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.x-lookup-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.x-lookup-lead { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
+
+.x-lookup-row,
+.x-verify-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.x-input {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.x-input:focus { outline: none; border-color: var(--accent); }
+
+.x-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.x-consent input { margin-top: 0.2rem; }
+
+.badge-x { letter-spacing: 0.01em; }
+
+.x-verify-panel {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--border);
+}
+
+.x-verify-status {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.x-verify-status.error { color: var(--red); }
+
+.x-report {
+  background: rgba(124, 108, 240, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+}
+
+.x-report-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.x-handle-link { color: var(--accent); font-weight: 600; text-decoration: none; }
+.x-handle-link:hover { text-decoration: underline; }
+
+.x-verdict {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  border: 1px solid var(--border);
+}
+
+.x-verdict-verified, .x-verdict-likely_real { background: rgba(74, 222, 128, 0.12); color: var(--green); }
+.x-verdict-inconclusive { background: rgba(154, 160, 176, 0.12); color: var(--muted); }
+.x-verdict-suspicious, .x-verdict-high_risk { background: rgba(248, 113, 113, 0.12); color: var(--red); }
+
+.x-score { margin-left: auto; font-weight: 700; font-size: 1.05rem; }
+
+.x-summary { margin-top: 0.5rem; font-size: 0.88rem; }
+
+.x-claim-checks {
+  list-style: none;
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+}
+
+.x-claim-checks .claim-status { font-weight: 700; margin-right: 0.4rem; }
+.x-claim-checks .claim-supported .claim-status { color: var(--green); }
+.x-claim-checks .claim-contradicted .claim-status { color: var(--red); }
+.x-claim-checks .claim-unverifiable .claim-status { color: var(--muted); }
+.x-claim-checks em { color: var(--muted); font-style: normal; }
+
+.x-photo-flag { margin-top: 0.5rem; color: var(--red); font-size: 0.82rem; }
+
+.x-trace, .x-citations { margin-top: 0.6rem; font-size: 0.8rem; }
+.x-trace summary, .x-citations summary { cursor: pointer; color: var(--accent); }
+.x-trace ol, .x-citations ul { margin: 0.4rem 0 0 1.25rem; color: var(--muted); }
+.trace-tool {
+  display: inline-block;
+  padding: 0 0.4rem;
+  margin-right: 0.35rem;
+  background: rgba(124, 108, 240, 0.15);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.72rem;
+}
+.x-citations a { color: var(--muted); }
+.x-citations a:hover { color: var(--accent); }
+
+.x-questions { margin-top: 0.6rem; }
+.x-questions-title { font-size: 0.82rem; font-weight: 600; margin-bottom: 0.3rem; }
+.x-questions ol { margin-left: 1.25rem; font-size: 0.84rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.xq-question { display: block; }
+.xq-signal { display: block; color: var(--muted); font-size: 0.76rem; }
+
+.x-report-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}

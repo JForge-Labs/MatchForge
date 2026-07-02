@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}@{{ report.handle }} — X-verified — MatchForge{% endblock %}
+
+{% block header %}
+<header class="page-header">
+  <div class="container">
+    <h1><span class="x-logo" aria-hidden="true">𝕏</span> Verification report</h1>
+    <p class="tagline">Public X footprint, cross-examined by Grok — shared with consent by a MatchForge user</p>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<article class="card share-card x-report">
+  <div class="x-report-header">
+    <span class="x-logo" aria-hidden="true">𝕏</span>
+    <a href="{{ report.profile_url }}" target="_blank" rel="noopener" class="x-handle-link">@{{ report.handle }}</a>
+    <span class="x-verdict x-verdict-{{ report.verdict }}">{{ report.verdict|replace("_", " ") }}</span>
+    {% if report.x_social_proof_score is not none %}
+    <span class="x-score">{{ "%.0f"|format(report.x_social_proof_score) }}/100</span>
+    {% endif %}
+  </div>
+
+  {% if report.one_line_summary %}
+  <p class="x-summary">{{ report.one_line_summary }}</p>
+  {% endif %}
+
+  {% if report.green_flags %}
+  <div class="trust-badges">
+    {% for flag in report.green_flags[:4] %}
+    <span class="badge badge-green">{{ flag }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if report.deterministic_signals %}
+  <details class="x-trace" open>
+    <summary>Official X API signals</summary>
+    <ol>
+      {% for signal in report.deterministic_signals[:6] %}
+      <li>{{ signal }}</li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+
+  {% if report.agent_trace %}
+  <details class="x-trace">
+    <summary>Grok investigated with {{ report.agent_trace|length }} live X/web searches</summary>
+    <ol>
+      {% for step in report.agent_trace %}
+      <li><span class="trace-tool">{{ step.tool }}</span> {{ step.query }}</li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+</article>
+
+<section class="share-referral-cta">
+  <h2>Check your own matches</h2>
+  <p class="section-lead">
+    MatchForge cross-examines dating profiles against public X activity using the
+    official X API and Grok's agentic search. Screenshot or @handle — 30 seconds to a trust score.
+  </p>
+  <div class="referral-row">
+    <a href="/signup" class="btn primary">Verify a match free</a>
+  </div>
+</section>
+
+<p class="share-disclaimer">Personal safety due diligence only — not a background check or judgment about any person. Built exclusively on public X data, shared with the checking user's consent. AI assessments are probabilistic; always verify yourself.</p>
+{% endblock %}

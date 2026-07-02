@@ -1,14 +1,101 @@
-"""Public pages: landing, home, and shared analysis views."""
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+"""Public pages: landing, home, shared analysis, and verification badge views."""
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.auth import is_authenticated
 from app.core.db import get_db
+from app.models.profile import Profile
 from app.services import capacity_service, share_service
+from app.utils.badge_image import render_verify_badge
 from app.utils.templates import render
 
 router = APIRouter(tags=["pages"])
+
+
+def _load_shared_verification(db: Session, token: str) -> tuple[Profile, dict] | None:
+    parsed = share_service.verify_verify_token(token)
+    if not parsed:
+        return None
+    account_id, profile_id = parsed
+    profile = (
+        db.query(Profile)
+        .filter(Profile.id == profile_id, Profile.account_id == account_id)
+        .first()
+    )
+    if not profile:
+        return None
+    report = profile.x_verification or {}
+    # Public rendering requires the owner's explicit opt-in
+    if not report.get("verdict") or not report.get("share_enabled"):
+        return None
+    return profile, report
+
+
+@router.get("/verify/{token}", response_class=HTMLResponse)
+def shared_verification(request: Request, token: str, db: Session = Depends(get_db)):
+    """Public X-verification report — opt-in share, public X data only."""
+    loaded = _load_shared_verification(db, token)
+    share_url = share_service.build_verify_share_url(token)
+    if not loaded:
+        return render(
+            request,
+            "share_expired.html",
+            {
+                "authed": is_authenticated(request),
+                "active": None,
+                "share_url": share_url,
+                "signup_url": "/signup",
+                "referral_url": None,
+                "og_title": "Verification link expired — MatchForge",
+                "og_description": "This X-verification report is no longer available.",
+            },
+        )
+    _profile, report = loaded
+    score = report.get("x_social_proof_score")
+    title = f"@{report['handle']} — X-verified by MatchForge"
+    description = (
+        f"X Social Proof {score:.0f}/100 · {report.get('verdict', '').replace('_', ' ')}"
+        if score is not None
+        else report.get("one_line_summary", "AI dating-safety verification")
+    )
+    return render(
+        request,
+        "verify_share.html",
+        {
+            "authed": is_authenticated(request),
+            "active": None,
+            "report": report,
+            "share_url": share_url,
+            "badge_url": f"{share_url}/badge.png",
+            "og_title": title,
+            "og_description": description,
+            "og_url": share_url,
+            "og_image": f"{share_url}/badge.png",
+            "twitter_title": title,
+            "twitter_description": description,
+        },
+    )
+
+
+@router.get("/verify/{token}/badge.png", include_in_schema=False)
+def shared_verification_badge(token: str, db: Session = Depends(get_db)):
+    """OG card image for the public verification report."""
+    loaded = _load_shared_verification(db, token)
+    if not loaded:
+        raise HTTPException(404, "Verification not found")
+    _profile, report = loaded
+    png = render_verify_badge(
+        handle=report["handle"],
+        score=report.get("x_social_proof_score"),
+        verdict=report.get("verdict", "inconclusive"),
+        summary=report.get("one_line_summary", ""),
+    )
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.get("/share/{token}", response_class=HTMLResponse)

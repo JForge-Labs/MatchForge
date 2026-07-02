@@ -63,6 +63,24 @@ ACTIVITIES: dict[str, LlmRoute] = {
         25,
         "Deep vetting synthesis",
     ),
+    "x_verify": LlmRoute(
+        "x_verify",
+        settings.xai_text_reason,
+        15,
+        "Agentic X verification (X API + Grok x_search cross-examination)",
+    ),
+    "verification_questions": LlmRoute(
+        "verification_questions",
+        settings.xai_text_fast,
+        6,
+        "AI-generated verification questions grounded in public X activity",
+    ),
+    "x_monitor_check": LlmRoute(
+        "x_monitor_check",
+        settings.xai_text_fast,
+        3,
+        "Scheduled X account delta check for monitored matches",
+    ),
     "onboarding_example": LlmRoute(
         "onboarding_example",
         settings.xai_vision_model,

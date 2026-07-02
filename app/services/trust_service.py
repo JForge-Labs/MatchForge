@@ -44,6 +44,9 @@ Only cite employers and jobs if they appear in the bio or photo context above â€
 SOCIAL ENRICHMENT:
 {social_findings}
 
+CURRENT SCAM TACTICS TRENDING ON X (auto-updated threat brief â€” weigh matches heavily):
+{threat_brief}
+
 Return ONLY valid JSON:
 {{
   "catfish_risk_score": 0-100 (higher = higher catfish/scam risk),
@@ -270,10 +273,13 @@ async def assess_catfish_risk(
             "trust_explanation": "Insufficient photo data for authenticity check.",
         }
 
+    from app.services import threat_intel_service
+
     prompt = CATFISH_SYNTHESIS_PROMPT.format(
         photo_analyses=json.dumps(photo_analyses, indent=2),
         bio=bio or "(no bio)",
         social_findings=json.dumps(social_summary, indent=2),
+        threat_brief=threat_intel_service.format_brief_for_prompt(),
     )
     try:
         result, _usage = await llm_service.generate_json(
