@@ -31,6 +31,9 @@
      DO_DEV_APP_ID                               DO_PROD_APP_ID
 ```
 
+> **Note (2026-07-02):** `deploy_on_push` disabled on both apps. GH Actions `create-deployment` is the only trigger. (See fix/disable-deploy-on-push PR #4)
+```
+
 **GitHub repo secrets (configured):**
 - `DIGITALOCEAN_ACCESS_TOKEN` — DO API / registry login
 - `DO_PROD_APP_ID` — `REDACTED-DO-PROD-APP-ID`
