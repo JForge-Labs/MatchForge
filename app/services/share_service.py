@@ -82,6 +82,49 @@ def build_share_url(token: str) -> str:
     return f"{base}/share/{token}"
 
 
+# --- X verification report sharing (opt-in public badge) ---
+
+VERIFY_SHARE_TTL_SECONDS = 90 * 86400
+
+
+def create_verify_token(account_id: int, profile_id: int) -> str:
+    payload = {
+        "a": account_id,
+        "p": profile_id,
+        "k": "xv",
+        "exp": int(time.time()) + VERIFY_SHARE_TTL_SECONDS,
+    }
+    body = _b64_encode(json.dumps(payload, separators=(",", ":")).encode())
+    sig = hmac.new(
+        settings.secret_key.encode(), body.encode(), hashlib.sha256
+    ).hexdigest()[:20]
+    return f"{body}.{sig}"
+
+
+def verify_verify_token(token: str) -> tuple[int, int] | None:
+    """Return (account_id, profile_id) for a valid X-verification share token."""
+    if not token or "." not in token:
+        return None
+    body, sig = token.rsplit(".", 1)
+    expected = hmac.new(
+        settings.secret_key.encode(), body.encode(), hashlib.sha256
+    ).hexdigest()[:20]
+    if not hmac.compare_digest(sig, expected):
+        return None
+    try:
+        payload = json.loads(_b64_decode(body))
+        if payload.get("k") != "xv" or payload.get("exp", 0) < time.time():
+            return None
+        return int(payload["a"]), int(payload["p"])
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def build_verify_share_url(token: str) -> str:
+    base = settings.app_url.rstrip("/")
+    return f"{base}/verify/{token}"
+
+
 def _display_name(profile: Profile) -> str:
     return profile.name or profile.username or f"Profile #{profile.id}"
 

@@ -128,6 +128,7 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "referrals": referrals,
             "agent_est_min": agent_est,
             "agent_image_cost": route("profile_agent_image").token_cost,
+            "x_verify_cost": route("x_verify").token_cost,
             "authed": is_authenticated(request),
             "active": "dashboard",
         },

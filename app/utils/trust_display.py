@@ -58,21 +58,30 @@ def _dedupe_profile_links(profile, enrichments: list) -> tuple[str | None, list]
 def trust_card_context(profile, ranking) -> dict:
     trust = profile.trust_analysis or {}
     vetting = trust.get("vetting") or {}
-    summary = vetting.get("summary") or compute_trust_summary(
-        {
-            "authenticity_score": ranking.authenticity_score
-            or profile.authenticity_score,
-            "naturalness_score": ranking.naturalness_score
-            or profile.naturalness_score,
-            "catfish_risk_score": ranking.catfish_risk_score
-            or profile.catfish_risk_score,
-            "bot_risk_score": ranking.bot_risk_score or profile.bot_risk_score,
-            "consistency_score": trust.get("consistency_score", 70),
-            "risk_factors": trust.get("risk_factors", []),
-            "social_mismatch": trust.get("social_mismatch", False),
-        },
-        vetting,
+    x_proof = getattr(ranking, "x_social_proof_score", None) or getattr(
+        profile, "x_social_proof_score", None
     )
+    x_verification = getattr(profile, "x_verification", None) or {}
+    trust_inputs = {
+        "authenticity_score": ranking.authenticity_score
+        or profile.authenticity_score,
+        "naturalness_score": ranking.naturalness_score
+        or profile.naturalness_score,
+        "catfish_risk_score": ranking.catfish_risk_score
+        or profile.catfish_risk_score,
+        "bot_risk_score": ranking.bot_risk_score or profile.bot_risk_score,
+        "x_social_proof_score": x_proof,
+        "consistency_score": trust.get("consistency_score", 70),
+        "risk_factors": trust.get("risk_factors", []),
+        "social_mismatch": trust.get("social_mismatch", False),
+    }
+    # Stored vetting summaries predate X verification — recompute when present
+    if x_proof is not None:
+        summary = compute_trust_summary(trust_inputs, vetting)
+    else:
+        summary = vetting.get("summary") or compute_trust_summary(
+            trust_inputs, vetting
+        )
 
     loc = vetting.get("location") or {}
     web = vetting.get("web") or {}
@@ -97,6 +106,15 @@ def trust_card_context(profile, ranking) -> dict:
         "auth": ranking.authenticity_score or profile.authenticity_score,
         "natural": ranking.naturalness_score or profile.naturalness_score,
         "bot": ranking.bot_risk_score or profile.bot_risk_score,
+        "x_proof": x_proof,
+        "x_verification": x_verification or None,
+        "x_verdict": x_verification.get("verdict"),
+        "x_handle": x_verification.get("handle")
+        or (
+            profile.username
+            if (profile.platform or "").lower() == "x"
+            else (profile.extracted_data or {}).get("x_handle")
+        ),
         "location_note": (
             loc.get("notes", [None])[0] if loc.get("notes") else None
         ),
