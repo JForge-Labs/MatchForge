@@ -31,10 +31,12 @@ XAI_VISION_MODEL=grok-4.3
 XAI_TEXT_FAST=grok-4.20-0309-non-reasoning
 XAI_TEXT_REASON=grok-4.20-0309-reasoning
 
-# --- X API v2 (required for the EXhibit — official ground truth) ---
+# --- X API v2 (needed in production for the EXhibit; optional for self-hosters) ---
 # App-only Bearer Token from the X Developer Console (pay-per-use billing must
-# be active on the project). The app reads only this; the consumer key/secret
-# are used in the portal to regenerate this token, not by the running app.
+# be active on the project). Without it the app degrades to Grok-only x_search
+# verification — see .env.example / CONTRIBUTING.md. The app reads only this;
+# the consumer key/secret are used in the portal to regenerate this token, not
+# by the running app.
 X_BEARER_TOKEN=CHANGEME
 X_API_ENABLED=true
 
