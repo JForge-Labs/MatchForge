@@ -25,6 +25,7 @@ from app.api import (
     partner,
     profiles,
     toolbox,
+    x_verify,
 )
 from app.core.config import get_settings
 
@@ -34,7 +35,35 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Path("data/uploads").mkdir(parents=True, exist_ok=True)
+
+    # Trend-aware threat intel: refresh the scam-tactic brief from X (via
+    # Grok x_search) shortly after boot, then re-check daily; the service
+    # only re-fetches when the cached brief exceeds THREAT_INTEL_REFRESH_DAYS.
+    scheduler = None
+    if settings.threat_intel_enabled and settings.xai_api_key:
+        try:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+            from app.services.threat_intel_service import refresh_if_stale
+
+            scheduler = AsyncIOScheduler()
+            scheduler.add_job(
+                refresh_if_stale, "interval", days=1, id="threat_intel_refresh"
+            )
+            scheduler.add_job(refresh_if_stale, id="threat_intel_boot")
+            scheduler.start()
+        except Exception as exc:  # never block app boot on the intel job
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Threat intel scheduler unavailable: %s", exc
+            )
+            scheduler = None
+
     yield
+
+    if scheduler:
+        scheduler.shutdown(wait=False)
 
 
 app = FastAPI(
@@ -58,6 +87,7 @@ app.include_router(partner.router)
 app.include_router(onboarding.router)
 app.include_router(toolbox.router)
 app.include_router(profiles.router)
+app.include_router(x_verify.router)
 app.include_router(dashboard.router)
 
 static_dir = Path("static")

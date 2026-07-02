@@ -615,6 +615,203 @@ function copyReferralLink() {
   });
 }
 
+// --- X verification (agentic Grok + official X API) ---
+
+const X_VERIFY_STEPS = [
+  "Looking up the X account (official API)…",
+  "Reading recent public posts…",
+  "Grok is searching X for evidence…",
+  "Cross-checking dating-profile claims…",
+  "Comparing photos across platforms…",
+  "Scoring social proof…",
+];
+
+const xVerifyInFlight = new Set();
+
+function xStatusEl(profileId) {
+  return document.getElementById(`x-verify-status-${profileId}`);
+}
+
+function showXVerifyForm(profileId) {
+  document.getElementById(`x-verify-form-${profileId}`)?.classList.remove("hidden");
+}
+
+function startXProgress(el, steps) {
+  if (!el) return null;
+  el.classList.remove("hidden", "error");
+  el.classList.add("processing");
+  return startStepCycler(el, steps);
+}
+
+async function submitXVerify(profileId) {
+  const key = String(profileId);
+  if (xVerifyInFlight.has(key)) return;
+
+  const handleEl = document.getElementById(`x-handle-${profileId}`);
+  const consentEl = document.getElementById(`x-consent-${profileId}`);
+  const handle = handleEl?.value?.trim() || "";
+  if (!handle) {
+    showStatus("Enter an X handle (@name) or x.com link.", "error");
+    return;
+  }
+  if (!consentEl?.checked) {
+    showStatus("Please confirm the public-data acknowledgement first.", "error");
+    return;
+  }
+
+  const statusEl = xStatusEl(profileId);
+  const btn = document.querySelector(
+    `#x-verify-form-${profileId} .btn.primary`
+  );
+  xVerifyInFlight.add(key);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Investigating…";
+  }
+  const timer = startXProgress(statusEl, X_VERIFY_STEPS);
+
+  const body = new FormData();
+  body.append("x_username", handle);
+  body.append("consent", "true");
+
+  try {
+    const resp = await fetch(`/profiles/${profileId}/x-verify`, {
+      method: "POST",
+      body,
+      credentials: "same-origin",
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Verification failed");
+    const score = data.report?.x_social_proof_score;
+    showStatus(
+      `X verification complete — ${data.report?.verdict?.replaceAll("_", " ")}` +
+        (score != null ? ` · social proof ${Math.round(score)}/100` : "") +
+        ` (+${data.tokens_charged} tokens). Balance: ${data.balance}`,
+      "ok"
+    );
+    setTimeout(() => window.location.reload(), 1600);
+  } catch (err) {
+    showStatus(err.message, "error");
+    if (statusEl) {
+      statusEl.textContent = err.message;
+      statusEl.classList.remove("processing");
+      statusEl.classList.add("error");
+    }
+  } finally {
+    if (timer) clearInterval(timer);
+    xVerifyInFlight.delete(key);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Verify on X";
+    }
+  }
+}
+
+async function xLookup() {
+  const handleEl = document.getElementById("x-lookup-handle");
+  const consentEl = document.getElementById("x-lookup-consent");
+  const btn = document.getElementById("x-lookup-btn");
+  const statusEl = document.getElementById("x-lookup-status");
+  const handle = handleEl?.value?.trim() || "";
+  if (!handle) {
+    showStatus("Enter an X handle (@name) or x.com link.", "error");
+    return;
+  }
+  if (!consentEl?.checked) {
+    showStatus("Please confirm the public-data acknowledgement first.", "error");
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Investigating…";
+  }
+  const timer = startXProgress(statusEl, X_VERIFY_STEPS);
+
+  const body = new FormData();
+  body.append("x_username", handle);
+  body.append("consent", "true");
+
+  try {
+    const resp = await fetch("/profiles/x-lookup", {
+      method: "POST",
+      body,
+      credentials: "same-origin",
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Lookup failed");
+    showStatus(
+      `@${data.report?.handle} verified — ${data.report?.verdict?.replaceAll("_", " ")}. New tile added to your shortlist.`,
+      "ok"
+    );
+    setTimeout(() => window.location.reload(), 1600);
+  } catch (err) {
+    showStatus(err.message, "error");
+    if (statusEl) {
+      statusEl.textContent = err.message;
+      statusEl.classList.remove("processing", "hidden");
+      statusEl.classList.add("error");
+    }
+  } finally {
+    if (timer) clearInterval(timer);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Verify on X";
+    }
+  }
+}
+
+async function getVerificationQuestions(profileId) {
+  const container = document.getElementById(`x-questions-${profileId}`);
+  if (container) container.innerHTML = "<p class='x-questions-title'>Generating questions from their public X activity…</p>";
+  try {
+    const resp = await fetch(`/profiles/${profileId}/x-verify/questions`, {
+      method: "POST",
+      body: new FormData(),
+      credentials: "same-origin",
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Question generation failed");
+    if (container) {
+      const items = (data.questions || [])
+        .map(
+          (q) =>
+            `<li><span class="xq-question">${q.question}</span>` +
+            (q.expected_signal
+              ? `<span class="xq-signal">Genuine answer: ${q.expected_signal}</span>`
+              : "") +
+            `</li>`
+        )
+        .join("");
+      container.innerHTML = items
+        ? `<p class="x-questions-title">Ask them (only the real owner can answer):</p><ol>${items}</ol>`
+        : "<p class='x-questions-title'>No questions could be grounded in their public activity.</p>";
+    }
+    showStatus(`Verification questions ready (+${data.tokens_charged} tokens).`, "ok");
+  } catch (err) {
+    if (container) container.innerHTML = "";
+    showStatus(err.message, "error");
+  }
+}
+
+async function shareXVerification(profileId) {
+  try {
+    const resp = await fetch(`/profiles/${profileId}/x-verify/share`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(parseErrorDetail(data) || "Share failed");
+
+    if (data.intent_url) {
+      window.open(data.intent_url, "_blank", "noopener");
+    }
+    await navigator.clipboard.writeText(data.share_url).catch(() => {});
+    showStatus("Verification report link copied — badge ready to post on X.", "ok");
+  } catch (err) {
+    showStatus(err.message, "error");
+  }
+}
+
 async function feedback(rankingId, type) {
   try {
     const resp = await fetch("/profiles/feedback", {

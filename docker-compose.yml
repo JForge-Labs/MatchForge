@@ -1,20 +1,8 @@
 # MatchForge dev services stack.
-# Native postgres + redis already run on the host; this compose file adds
-# Ollama and optional isolated postgres/redis for experiments.
+# Native postgres + redis may already run on the host; this compose file
+# provides isolated postgres/redis for local development. AI runs via the
+# xAI Grok cloud API (XAI_API_KEY) — no local model service required.
 services:
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -44,5 +32,4 @@ services:
       retries: 5
 
 volumes:
-  ollama_data:
   pgdata:

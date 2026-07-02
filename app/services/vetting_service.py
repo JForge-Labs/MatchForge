@@ -239,6 +239,8 @@ def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:
     catfish = float(trust.get("catfish_risk_score") or 30)
     bot = float(trust.get("bot_risk_score") or 20)
     consistency = float(trust.get("consistency_score") or 70)
+    x_proof_raw = trust.get("x_social_proof_score")
+    x_proof = float(x_proof_raw) if x_proof_raw is not None else None
 
     location_penalty = 0.0
     loc = (vetting or {}).get("location") or {}
@@ -251,22 +253,40 @@ def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:
     if web.get("status") == "empty":
         location_penalty += 5
 
-    overall = (
-        auth * 0.35
-        + natural * 0.15
-        + (100 - catfish) * 0.30
-        + (100 - bot) * 0.10
-        + consistency * 0.10
-        - location_penalty
-    )
+    if x_proof is not None:
+        # Fifth dimension: verified X social proof carries real weight
+        overall = (
+            auth * 0.30
+            + natural * 0.10
+            + (100 - catfish) * 0.25
+            + (100 - bot) * 0.10
+            + consistency * 0.10
+            + x_proof * 0.15
+            - location_penalty
+        )
+    else:
+        overall = (
+            auth * 0.35
+            + natural * 0.15
+            + (100 - catfish) * 0.30
+            + (100 - bot) * 0.10
+            + consistency * 0.10
+            - location_penalty
+        )
     overall = max(0, min(100, round(overall, 1)))
 
     if catfish >= 60 or overall < 40 or loc.get("consistent") is False:
         flag = "flag"
         label = "Catfish risk"
+    elif x_proof is not None and x_proof < 30:
+        flag = "caution"
+        label = "Weak X social proof"
     elif catfish >= 35 or overall < 60 or location_penalty >= 10:
         flag = "caution"
         label = "Verify further"
+    elif x_proof is not None and x_proof >= 70:
+        flag = "clear"
+        label = "X-verified"
     else:
         flag = "clear"
         label = "Looks legit"
@@ -276,12 +296,15 @@ def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:
         risk_factors.append("Location mismatch between profile and bio")
     if web.get("status") == "empty" and (trust.get("social_mismatch")):
         risk_factors.append("Thin public web footprint")
+    if x_proof is not None and x_proof < 30:
+        risk_factors.append("Weak social proof on X")
 
     return {
         "overall_trust_score": overall,
         "catfish_flag": flag,
         "catfish_flag_label": label,
         "catfish_risk_score": catfish,
+        "x_social_proof_score": x_proof,
         "location_penalty": location_penalty,
         "risk_factors": risk_factors,
     }

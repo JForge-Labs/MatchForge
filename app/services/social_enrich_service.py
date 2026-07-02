@@ -149,11 +149,14 @@ async def _search_via_web(platform: str, query: str) -> dict:
 
 
 async def _search_via_playwright(platform: str, query: str) -> dict:
-    """Optional browser search for dev environments with Playwright installed."""
+    """Optional browser search for dev environments with Playwright installed.
+
+    Note: X is intentionally NOT here — X lookups go through the official
+    X API + Grok x_search (see x_api_service / x_verify_service).
+    """
     from urllib.parse import quote_plus as qp
 
     urls = {
-        "x": f"https://x.com/search?q={qp(query)}&src=typed_query&f=user",
         "instagram": f"https://www.google.com/search?q=site:instagram.com+{qp(query)}",
         "linkedin": f"https://www.google.com/search?q=site:linkedin.com/in+{qp(query)}",
     }
@@ -170,17 +173,9 @@ async def _search_via_playwright(platform: str, query: str) -> dict:
             page = await browser.new_page()
             await page.goto(url_template, wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(2000)
-            if platform == "x":
-                for art in (await page.query_selector_all('[data-testid="UserCell"]'))[:5]:
-                    text = await art.inner_text()
-                    findings["snippets"].append(text[:300])
-                    handle = re.search(r"@(\w+)", text)
-                    if handle:
-                        findings["usernames"].append(handle.group(1))
-            else:
-                for res in (await page.query_selector_all("div.g"))[:5]:
-                    text = await res.inner_text()
-                    findings["snippets"].append(text[:300])
+            for res in (await page.query_selector_all("div.g"))[:5]:
+                text = await res.inner_text()
+                findings["snippets"].append(text[:300])
             await browser.close()
         findings["status"] = "ok"
     except Exception as exc:
@@ -204,7 +199,7 @@ async def _search_platform(platform: str, query: str) -> dict:
     findings = await _search_via_web(platform, query)
     if findings.get("status") == "ok" and (findings.get("snippets") or findings.get("usernames")):
         return findings
-    if platform in ("x", "instagram", "linkedin"):
+    if platform in ("instagram", "linkedin"):
         pw = await _search_via_playwright(platform, query)
         if pw.get("snippets") or pw.get("usernames"):
             return pw

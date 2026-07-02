@@ -11,6 +11,7 @@ from app.models.profile import (
 )
 from app.models.share_open import ShareOpen
 from app.models.user import UserProfile
+from app.models.x_profile import XProfileCache
 
 __all__ = [
     "Account",
@@ -27,4 +28,5 @@ __all__ = [
     "SocialEnrichment",
     "ShareOpen",
     "UserProfile",
+    "XProfileCache",
 ]

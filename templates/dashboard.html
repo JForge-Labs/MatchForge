@@ -43,6 +43,20 @@
     <p class="upload-progress-hint">Usually 30–90 seconds per profile. Please don’t click Analyze again — you’ll only queue duplicate charges.</p>
   </div>
   <div id="upload-status" class="status hidden"></div>
+
+  <div class="x-lookup" id="x-lookup">
+    <h3 class="x-lookup-title"><span class="x-logo" aria-hidden="true">𝕏</span> Verify a match by X handle</h3>
+    <p class="x-lookup-lead">No screenshot? Paste their @handle or x.com link — Grok cross-examines their public X footprint and scores social proof. ~{{ x_verify_cost }} tokens.</p>
+    <div class="x-lookup-row">
+      <input type="text" id="x-lookup-handle" class="x-input" placeholder="@handle or x.com/…" autocomplete="off">
+      <button type="button" id="x-lookup-btn" class="btn primary" onclick="xLookup()">Verify on X</button>
+    </div>
+    <label class="x-consent">
+      <input type="checkbox" id="x-lookup-consent">
+      I understand this checks <strong>public X data only</strong>, on my request, and is deleted with the profile.
+    </label>
+    <div id="x-lookup-status" class="status hidden"></div>
+  </div>
 </section>
 
 {% if referrals and referrals.referral_url %}
@@ -188,6 +202,11 @@
           Bot {{ "%.0f"|format(t.bot) }}%
         </span>
         {% endif %}
+        {% if t.x_proof is not none %}
+        <span class="badge badge-x {% if t.x_proof >= 70 %}badge-green{% elif t.x_proof >= 40 %}badge-yellow{% else %}badge-red{% endif %}" title="X Social Proof — official X API signals blended with Grok's agentic investigation">
+          𝕏 Social proof {{ "%.0f"|format(t.x_proof) }}
+        </span>
+        {% endif %}
       </div>
 
       {% if t.location_note %}
@@ -234,6 +253,104 @@
         <span class="token-spent" title="Total tokens invested vetting this profile">
           {{ item.tokens_spent }} tokens spent
         </span>
+      </div>
+
+      <div class="x-verify-panel" data-profile-id="{{ ranking.profile.id }}">
+        {% set xv = t.x_verification %}
+        {% if xv and xv.verdict %}
+        <div class="x-report">
+          <div class="x-report-header">
+            <span class="x-logo" aria-hidden="true">𝕏</span>
+            <a href="{{ xv.profile_url }}" target="_blank" rel="noopener" class="x-handle-link">@{{ xv.handle }}</a>
+            <span class="x-verdict x-verdict-{{ xv.verdict }}">{{ xv.verdict|replace("_", " ") }}</span>
+            {% if xv.x_social_proof_score is not none %}
+            <span class="x-score" title="Blended: official X API signals + Grok agentic investigation">{{ "%.0f"|format(xv.x_social_proof_score) }}/100</span>
+            {% endif %}
+          </div>
+          {% if xv.one_line_summary %}
+          <p class="x-summary">{{ xv.one_line_summary }}</p>
+          {% endif %}
+
+          {% if xv.claim_checks %}
+          <ul class="x-claim-checks">
+            {% for check in xv.claim_checks[:5] %}
+            <li class="claim-{{ check.status }}">
+              <span class="claim-status">{{ {"supported": "✓", "contradicted": "✗", "unverifiable": "?"}.get(check.status, "?") }}</span>
+              <span class="claim-text">{{ check.claim }}{% if check.evidence %} — <em>{{ check.evidence }}</em>{% endif %}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if xv.photo_cross_check and xv.photo_cross_check.different_person_red_flag %}
+          <p class="x-photo-flag">⚠ X profile photo may not match dating-profile photos ({{ xv.photo_cross_check.notes }})</p>
+          {% endif %}
+
+          {% if xv.agent_trace %}
+          <details class="x-trace">
+            <summary>Grok investigated with {{ xv.agent_trace|length }} live X/web searches</summary>
+            <ol>
+              {% for step in xv.agent_trace %}
+              <li><span class="trace-tool">{{ step.tool }}</span> {{ step.query }}</li>
+              {% endfor %}
+            </ol>
+          </details>
+          {% endif %}
+
+          {% if xv.citations %}
+          <details class="x-citations">
+            <summary>{{ xv.citations|length }} cited sources</summary>
+            <ul>
+              {% for url in xv.citations[:10] %}
+              <li><a href="{{ url }}" target="_blank" rel="noopener">{{ url|replace("https://", "")|truncate(60) }}</a></li>
+              {% endfor %}
+            </ul>
+          </details>
+          {% endif %}
+
+          <div id="x-questions-{{ ranking.profile.id }}" class="x-questions">
+            {% if xv.verification_questions %}
+            <p class="x-questions-title">Ask them (only the real owner can answer):</p>
+            <ol>
+              {% for q in xv.verification_questions %}
+              <li>
+                <span class="xq-question">{{ q.question }}</span>
+                {% if q.expected_signal %}<span class="xq-signal">Genuine answer: {{ q.expected_signal }}</span>{% endif %}
+              </li>
+              {% endfor %}
+            </ol>
+            {% endif %}
+          </div>
+
+          <div class="x-report-actions">
+            {% if not xv.verification_questions %}
+            <button type="button" class="btn small" onclick="getVerificationQuestions({{ ranking.profile.id }})">Get verification questions</button>
+            {% endif %}
+            <button type="button" class="btn small" onclick="shareXVerification({{ ranking.profile.id }})">Share badge</button>
+            <button type="button" class="btn small x-reverify" onclick="showXVerifyForm({{ ranking.profile.id }})">Re-verify</button>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="x-verify-form {% if xv and xv.verdict %}hidden{% endif %}" id="x-verify-form-{{ ranking.profile.id }}">
+          <div class="x-verify-row">
+            <span class="x-logo" aria-hidden="true">𝕏</span>
+            <input
+              type="text"
+              id="x-handle-{{ ranking.profile.id }}"
+              class="x-input"
+              placeholder="@handle or x.com link"
+              value="{{ t.x_handle or '' }}"
+              autocomplete="off"
+            >
+            <button type="button" class="btn small primary" onclick="submitXVerify({{ ranking.profile.id }})">Verify on X</button>
+          </div>
+          <label class="x-consent">
+            <input type="checkbox" id="x-consent-{{ ranking.profile.id }}">
+            Public X data only · on my request · deleted with this profile · ~{{ x_verify_cost }} tokens
+          </label>
+        </div>
+        <div id="x-verify-status-{{ ranking.profile.id }}" class="x-verify-status hidden" role="status" aria-live="polite"></div>
       </div>
 
       <div class="agent-panel" data-profile-id="{{ ranking.profile.id }}">

@@ -17,6 +17,7 @@ from app.models.profile import PreferenceVector, ProfileEvidence  # noqa: F401
 from app.models.referral import Referral  # noqa: F401
 from app.models.share_open import ShareOpen  # noqa: F401
 from app.models.user import UserProfile
+from app.models.x_profile import XProfileCache  # noqa: F401
 
 DEFAULT_TRAITS = {
     "values": ["kindness", "intellectual curiosity", "emotional availability"],
@@ -126,6 +127,17 @@ def main() -> None:
     ]
     with engine.connect() as conn:
         for sql in v05_stmts:
+            conn.execute(text(sql))
+        conn.commit()
+
+    # v2 — X verification (X Social Proof Score + report)
+    v2_x_stmts = [
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS x_social_proof_score DOUBLE PRECISION",
+        "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS x_verification JSONB DEFAULT '{}'::jsonb",
+        "ALTER TABLE rankings ADD COLUMN IF NOT EXISTS x_social_proof_score DOUBLE PRECISION",
+    ]
+    with engine.connect() as conn:
+        for sql in v2_x_stmts:
             conn.execute(text(sql))
         conn.commit()
 

@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     xai_vision_model: str = "grok-4.3"
     xai_text_fast: str = "grok-4.20-0309-non-reasoning"
     xai_text_reason: str = "grok-4.20-0309-reasoning"
+    xai_agent_max_turns: int = 8  # server-side tool-loop depth for agentic runs
+
+    # X API v2 (optional — official ground truth for X verification;
+    # Grok x_search still works without it)
+    x_bearer_token: str = ""
+    x_api_enabled: bool = True
+    x_cache_ttl_hours: int = 24
+    x_timeline_max_posts: int = 50
+
+    # Threat intel — trend-aware scam-tactic brief refreshed from X via Grok
+    threat_intel_enabled: bool = True
+    threat_intel_refresh_days: int = 7
 
     # Affiliate partners — revenue-share attribution via ?aff= links
     affiliates_enabled: bool = True
