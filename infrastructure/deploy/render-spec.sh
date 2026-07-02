@@ -41,6 +41,14 @@ fi
 : "${STRIPE_WEBHOOK_SECRET:=}"
 : "${STRIPE_PRODUCT_ID:=}"
 
+# X_BEARER_TOKEN is a core prod secret sourced from matchforge-prod.env above
+# (not a separate integration file). The app degrades to Grok-only without it,
+# but the prod/EXhibit build needs it — warn loudly rather than deploy a blank
+# token that silently disables X API verification while X_API_ENABLED=true.
+if [[ "${TEMPLATE_NAME}" == "matchforge.app.yaml" && -z "${X_BEARER_TOKEN:-}" ]]; then
+  echo "WARNING: X_BEARER_TOKEN is empty — prod X API verification will be DISABLED (Grok-only fallback)." >&2
+fi
+
 sed \
   -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \
   -e "s|__AUTH_PASSWORD__|${AUTH_PASSWORD}|g" \
@@ -51,6 +59,7 @@ sed \
   -e "s|__SMTP_FROM__|${SMTP_FROM}|g" \
   -e "s|__SMTP_USE_TLS__|${SMTP_USE_TLS}|g" \
   -e "s|__XAI_API_KEY__|${XAI_API_KEY}|g" \
+  -e "s|__X_BEARER_TOKEN__|${X_BEARER_TOKEN:-}|g" \
   -e "s|__BRAVE_API_KEY__|${BRAVE_API_KEY:-}|g" \
   -e "s|__STRIPE_SECRET_KEY__|${STRIPE_SECRET_KEY}|g" \
   -e "s|__STRIPE_PUBLISHABLE_KEY__|${STRIPE_PUBLISHABLE_KEY}|g" \
