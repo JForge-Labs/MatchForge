@@ -41,16 +41,24 @@ async def lifespan(app: FastAPI):
     # only re-fetches when the cached brief exceeds THREAT_INTEL_REFRESH_DAYS.
     scheduler = None
     if settings.threat_intel_enabled and settings.xai_api_key:
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        try:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-        from app.services.threat_intel_service import refresh_if_stale
+            from app.services.threat_intel_service import refresh_if_stale
 
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(
-            refresh_if_stale, "interval", days=1, id="threat_intel_refresh"
-        )
-        scheduler.add_job(refresh_if_stale, id="threat_intel_boot")
-        scheduler.start()
+            scheduler = AsyncIOScheduler()
+            scheduler.add_job(
+                refresh_if_stale, "interval", days=1, id="threat_intel_refresh"
+            )
+            scheduler.add_job(refresh_if_stale, id="threat_intel_boot")
+            scheduler.start()
+        except Exception as exc:  # never block app boot on the intel job
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Threat intel scheduler unavailable: %s", exc
+            )
+            scheduler = None
 
     yield
 

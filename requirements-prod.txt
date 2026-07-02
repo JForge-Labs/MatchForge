@@ -6,6 +6,7 @@ psycopg2-binary
 pgvector
 pydantic
 pydantic-settings
+APScheduler
 python-dotenv
 python-multipart
 httpx
