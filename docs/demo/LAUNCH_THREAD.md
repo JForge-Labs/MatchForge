@@ -40,7 +40,8 @@ Post 8 (privacy stance — preempt the replies):
 
 Post 9 (builder cred):
 > Open source (MIT). FastAPI + X API v2 + Grok server-side agents.
-> Listed on the X Developer EXhibit → [exhibit link]
+> Listed on the X Developer EXhibit → https://developer.x.com/exhibit
+> Full demo: https://youtu.be/mZUr6jFGYog
 > Repo → github.com/JForge-Labs/MatchForge
 > @XDevelopers @xai
 

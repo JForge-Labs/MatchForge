@@ -1,9 +1,15 @@
-# Demo video — placeholder
+# Demo video
 
-Record a 60-second walkthrough following the demo script in
-`EXHIBIT_SUBMISSION.md`, then replace this file's link:
+**Video:** https://youtu.be/mZUr6jFGYog
 
-**Video:** *(not yet recorded)*
+Official ~55s demo for the [X Developer EXhibit](https://developer.x.com/exhibit).
 
-Suggested: screen capture at 1080p, dashboard zoomed to ~110%, one take per
-scene, cut to the agent-trace panel the moment the @handle verification starts.
+Following the script in `EXHIBIT_SUBMISSION.md`:
+
+1. Dashboard → drag screenshot → trust badges
+2. @handle verification → live agent trace (hero shot)
+3. Full report with X Social Proof score + claims + citations
+4. Verification questions
+5. Share badge → public page + OG card
+
+Suggested for future re-cuts: 1080p screen capture, dashboard zoomed ~110%, focus on the agent-trace panel.

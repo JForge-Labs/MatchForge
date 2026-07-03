@@ -6,7 +6,7 @@ Built for the **[X Developer EXhibit](https://developer.x.com/exhibit)** · Cate
 
 Hosted at [match-forge.com](https://match-forge.com) · MIT licensed · FastAPI + PostgreSQL + xAI Grok + X API v2
 
-> Demo video: *(placeholder — see `docs/demo/`)*
+> Demo video: https://youtu.be/mZUr6jFGYog
 
 ---
 
