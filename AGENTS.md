@@ -37,4 +37,4 @@ Karpathy guidelines: surgical changes, simplicity first, verifiable success crit
 
 ## Responsible use
 
-Privacy-first, local-by-default. Profile data is decision-support only — not ground truth about real people.
+Privacy-first, minimal data collection. Profile data is decision-support only — not ground truth about real people.

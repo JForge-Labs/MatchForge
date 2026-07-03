@@ -30,12 +30,13 @@ You may only upload content that comes from:
 
 You represent that you have a **lawful personal reason** to analyze this material for your own safety and due diligence — not for harassment, surveillance, or commercial exploitation.
 
-## 3. Self-Hosted and Hosted Deployments
+## 3. The Hosted Service
 
-- **Self-hosted:** You run MatchForge on your own infrastructure. Data stays under your control unless you configure external AI services.
-- **Hosted (e.g. match-forge.com):** We operate the app and database for your account. AI analysis may use configured cloud models (e.g. xAI Grok). We do not sell your data.
+MatchForge is provided as a **hosted service at match-forge.com**: we operate the app and database for your account, and AI analysis may use configured cloud models (e.g. xAI Grok). We do not sell your data. Access is billed via a prepaid token ledger — a free grant on signup, topped up via Stripe as needed to cover AI/API usage.
 
-In all deployments, **you** decide what to upload and when to delete it.
+These Terms describe your use of the hosted service. (The MatchForge source code is open (MIT) and can technically be run on your own infrastructure — if you do, these Terms don't apply to that separate instance; you're responsible for your own deployment.)
+
+**You** decide what to upload and when to delete it, regardless of how the app is run.
 
 ## 4. Your Responsibilities
 

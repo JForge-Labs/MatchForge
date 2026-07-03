@@ -45,11 +45,9 @@ You may **withdraw consent** by stopping use of the service and requesting delet
 
 ## 4. Where Data Lives
 
-### Self-hosted
-Data resides in **your** PostgreSQL database and file storage. External AI calls occur only if you configure API keys.
+MatchForge is a **hosted service**: when you use match-forge.com, your data resides in your account on our managed infrastructure. When AI is enabled, uploaded images and text may be transmitted to configured providers (currently **xAI Grok**) **solely to perform analysis you requested**. We do not use your uploads to train third-party models.
 
-### Hosted (match-forge.com)
-Data resides in your account on our managed infrastructure. When AI is enabled, uploaded images and text may be transmitted to configured providers (currently **xAI Grok**) **solely to perform analysis you requested**. We do not use your uploads to train third-party models.
+The MatchForge source is open (MIT) and could technically be run on infrastructure you control instead — in that case this Policy (which describes match-forge.com) would not apply, and you alone would be responsible for how that separate instance handles data.
 
 ## 5. AI Processing — What You Consent To
 

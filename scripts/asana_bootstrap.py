@@ -29,8 +29,8 @@ PROJECT_GID = "1215469600213575"  # canonical project in My Workspace
 CHARTER = """MatchForge — Project Charter (v0.1 R&D)
 
 VISION
-Self-hosted, local-first AI dating intelligence toolbox. Users drag screenshots or
-enter usernames. The system establishes a user profile (gender + intentions), builds
+AI dating intelligence toolbox, hosted at match-forge.com (open source, MIT).
+Users drag screenshots or enter usernames. The system establishes a user profile (gender + intentions), builds
 a personalized preference vector, ranks/percolates matches, enriches with public
 social data, and scores authenticity (catfish, filters, bots) — all on-box.
 
@@ -98,7 +98,7 @@ SECTIONS: dict[str, list[dict]] = {
 PUBLIC REPO (recommended for toolbox/OSS angle)
 + Community contributors, issues, stars, credibility
 + Easier CI, forks, documentation visibility
-+ Aligns with self-hosted / privacy-first marketing
++ Aligns with open-source / privacy-first positioning
 − Responsible-use boundary must be very clear in README/LICENSE
 − No secrets in repo ever (.env.example only)
 − Consider AGPL or MIT + ethics disclaimer
@@ -118,8 +118,10 @@ that touch platform ToS until legal review.""",
             "notes": "Templates work now. React if we need rich interactivity + component reuse.",
         },
         {
-            "name": "DECISION: Distribution model — self-hosted only vs hosted SaaS?",
-            "notes": "Charter says self-hosted. Revisit if monetization needed.",
+            "name": "RESOLVED: Distribution model — hosted SaaS (match-forge.com), token billing",
+            "notes": "Hosted product with free signup token grant + Stripe top-ups covers"
+            " AI/API costs. Code stays open source (MIT) for transparency/EXhibit,"
+            " not marketed as self-hosted.",
         },
     ],
 }

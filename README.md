@@ -10,6 +10,12 @@ Hosted at [match-forge.com](https://match-forge.com) · MIT licensed · FastAPI 
 
 ---
 
+## Using the hosted app
+
+MatchForge is a hosted product — no install required. Sign up free at **[match-forge.com](https://match-forge.com)**, and every new account starts with a free grant of tokens to try it out. Tokens cover the pay-per-use costs of the xAI Grok and X API calls behind each analysis; buy more via Stripe if you use it heavily.
+
+The code below is open source (MIT) for transparency and the X Developer EXhibit — you don't need to run any of it to use MatchForge.
+
 ## The problem
 
 Catfish, bots, and stolen-photo profiles are epidemic on dating apps. Meanwhile, X is the largest public behavioral record on the internet — and Grok is the only model with native, server-side X search. MatchForge fuses both into a 30-second trust check.
@@ -31,9 +37,9 @@ Every feature below maps to a concrete X API endpoint or Grok capability — ful
 
 The demo moment: type an @handle and **watch the agent trace live** — every `x_search` and `web_search` query Grok runs is surfaced in the UI with citations.
 
-## Quickstart
+## Run it locally (for development)
 
-Works with only an xAI key; the official X API is optional (Grok's `x_search` covers the no-key path).
+This is for contributors who want to hack on the code — not required to use MatchForge (see [Using the hosted app](#using-the-hosted-app) above). Works with only an xAI key; the official X API is optional (Grok's `x_search` covers the no-key path).
 
 ```bash
 git clone https://github.com/JForge-Labs/MatchForge && cd MatchForge
@@ -45,7 +51,7 @@ python scripts/migrate_v2_x.py
 uvicorn app.main:app --reload
 ```
 
-Open http://localhost:8000/dashboard, sign up, and either drop a dating-app screenshot or paste an X handle.
+Open http://localhost:8000/dashboard, sign up, and either drop a dating-app screenshot or paste an X handle. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full dev workflow.
 
 Tip: X API credit purchases currently earn up to 20% back in xAI API credits — one budget powers both halves of this app.
 
