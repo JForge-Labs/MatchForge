@@ -2,7 +2,7 @@
 
 **Paste a screenshot or an @handle. Grok cross-examines their public X footprint and tells you if they're real — before you waste a week texting a bot.**
 
-Built for the **[X Developer EXhibit](https://developer.x.com/exhibit)** · Categories: *Analytics & Insights · Bots & Automation · Developer Tools*
+View on the **[X Developer EXhibit](https://developer.x.com/exhibit)** · Categories: *Analytics & Insights · Bots & Automation · Developer Tools*
 
 Hosted at [match-forge.com](https://match-forge.com) · MIT licensed · FastAPI + PostgreSQL + xAI Grok + X API v2
 
