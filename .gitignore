@@ -25,4 +25,10 @@ data/*
 .DS_Store
 .idea/
 .vscode/
+
+# Maintainer's homelab-specific ops scripts (real hostnames/IPs) — not needed
+# for self-hosters; kept locally on the maintainer's deploy box only.
+scripts/pve_ct108_swap.sh
+scripts/configure_swap.sh
+scripts/tailscale_setup.sh
 infrastructure/PRIVATE_OPS.md

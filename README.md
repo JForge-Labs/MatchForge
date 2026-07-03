@@ -36,7 +36,7 @@ The demo moment: type an @handle and **watch the agent trace live** — every `x
 Works with only an xAI key; the official X API is optional (Grok's `x_search` covers the no-key path).
 
 ```bash
-git clone https://github.com/jfodchuk/MatchForge && cd MatchForge
+git clone https://github.com/JForge-Labs/MatchForge && cd MatchForge
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env         # set XAI_API_KEY (required), X_BEARER_TOKEN (optional)

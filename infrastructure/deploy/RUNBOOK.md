@@ -2,11 +2,15 @@
 
 ## Environments (dev → stage → prod)
 
-| Tier | Where | URL | DB | Deploy trigger | Status |
-|------|-------|-----|----|----------------|--------|
-| **Dev** | CT108 LXC (`matchforge-dev`) | http://REDACTED-LAN-IP/dashboard · Tailscale funnel | Local PG `matchforge_dev` | Manual (`systemctl restart matchforge`) | **Live** |
-| **Stage** | DO App Platform `matchforge-dev` | https://dev.match-forge.com | Separate managed PG | `main` push → GH Actions `deploy-stage` | **Live** (`a41e0b2e-…`) |
-| **Prod** | DO App Platform `matchforge` | https://match-forge.com | Managed PG `db` component | `v*` tag or manual GH Actions | **Live** |
+| Tier | Where | URL | DB | Deploy trigger |
+|------|-------|-----|----|----------------|
+| **Dev** | Your local machine | http://localhost:8000/dashboard | Local PostgreSQL | Manual (`uvicorn app.main:app --reload`) |
+| **Stage** | DO App Platform | https://dev.match-forge.com | Separate managed PG | `main` push → GH Actions `deploy-stage` |
+| **Prod** | DO App Platform | https://match-forge.com | Managed PG `db` component | `v*` tag or manual GH Actions |
+
+> Operator-specific values (DO app IDs, internal hosts, secrets file paths) live in
+> the maintainer's private ops doc — not in this repository. Self-hosters can
+> substitute their own DO App Platform apps and secrets management.
 
 ### CI/CD pipeline (`.github/workflows/deploy.yml`)
 
@@ -31,18 +35,18 @@
      DO_DEV_APP_ID                               DO_PROD_APP_ID
 ```
 
-> **Note (2026-07-02):** `deploy_on_push` disabled on both apps. GH Actions `create-deployment` is the only trigger. (See fix/disable-deploy-on-push PR #4)
+> **Note:** `deploy_on_push` is disabled on both apps. GH Actions
+> `create-deployment` is the only deploy trigger — this avoids racing
+> deployments between DO's own image-push trigger and GH Actions.
 ```
 
-**GitHub repo secrets (configured):**
+**GitHub Actions repo secrets (required):**
 - `DIGITALOCEAN_ACCESS_TOKEN` — DO API / registry login
-- `DO_PROD_APP_ID` — `REDACTED-DO-PROD-APP-ID`
-
-**GitHub secrets (staging):**
-- `DO_DEV_APP_ID` — `REDACTED-DO-STAGE-APP-ID`
+- `DO_PROD_APP_ID` — your production App Platform app ID
+- `DO_DEV_APP_ID` — your staging App Platform app ID
 
 **Typical flows:**
-1. **Local dev** — code on CT108, test with Grok (`LLM_PROVIDER=xai`), commit, `git push origin main`
+1. **Local dev** — code locally, test with Grok (`LLM_PROVIDER=xai`), commit, `git push origin main`
 2. **Stage auto-deploy** — every `main` push builds, pushes DOCR, and rolls out to `dev.match-forge.com`
 3. **Prod release** — `git tag v0.1.2 && git push origin v0.1.2` **or** Actions → Deploy MatchForge → `deploy_target: prod`
 4. **Manual stage** — Actions → `deploy_target: stage` (without waiting for a new build's stage job)
@@ -57,25 +61,26 @@
 
 ## Manual deploy (DOCR fallback)
 
-Use when GitHub Actions is unavailable:
+Use when GitHub Actions is unavailable (`$DO_PROD_APP_ID` = your app ID):
 
 ```bash
-source ~/.grok/secrets/digitalocean.env
-cd /opt/matchforge
+export DIGITALOCEAN_ACCESS_TOKEN=...   # from your DO API token / secrets manager
 docker build -t registry.digitalocean.com/matchforge/web:latest .
 doctl registry login
 docker push registry.digitalocean.com/matchforge/web:latest
-doctl apps create-deployment REDACTED-DO-PROD-APP-ID
+doctl apps create-deployment "$DO_PROD_APP_ID"
 ```
 
 Env-only update:
 
 ```bash
-source ~/.grok/secrets/digitalocean.env
-source ~/.grok/secrets/matchforge-prod.env
-/opt/matchforge/infrastructure/deploy/render-spec.sh /tmp/matchforge-deploy.yaml
-doctl apps update REDACTED-DO-PROD-APP-ID --spec /tmp/matchforge-deploy.yaml
+export DIGITALOCEAN_ACCESS_TOKEN=...
+infrastructure/deploy/render-spec.sh matchforge.app.yaml /tmp/matchforge-deploy.yaml
+doctl apps update "$DO_PROD_APP_ID" --spec /tmp/matchforge-deploy.yaml
 ```
+
+`render-spec.sh` sources secrets from `~/.grok/secrets/*.env` by convention —
+adjust to your own secrets manager.
 
 ## Provision staging (one-time)
 
@@ -87,23 +92,10 @@ doctl apps update REDACTED-DO-PROD-APP-ID --spec /tmp/matchforge-deploy.yaml
 > `render-spec.sh matchforge-dev.app.yaml`, which already substitutes it).
 
 ```bash
-source ~/.grok/secrets/digitalocean.env
-source ~/.grok/secrets/matchforge-prod.env
-source ~/.grok/secrets/xai.env
-TEMPLATE=/opt/matchforge/infrastructure/deploy/matchforge-dev.app.yaml
-sed \
-  -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \
-  -e "s|__AUTH_PASSWORD__|${AUTH_PASSWORD}|g" \
-  -e "s|__SMTP_HOST__|${SMTP_HOST}|g" \
-  -e "s|__SMTP_PORT__|${SMTP_PORT}|g" \
-  -e "s|__SMTP_USER__|${SMTP_USER}|g" \
-  -e "s|__SMTP_PASSWORD__|${SMTP_PASSWORD}|g" \
-  -e "s|__SMTP_FROM__|${SMTP_FROM}|g" \
-  -e "s|__SMTP_USE_TLS__|${SMTP_USE_TLS}|g" \
-  -e "s|__XAI_API_KEY__|${XAI_API_KEY}|g" \
-  "${TEMPLATE}" > /tmp/matchforge-dev.yaml
+export DIGITALOCEAN_ACCESS_TOKEN=...
+infrastructure/deploy/render-spec.sh matchforge-dev.app.yaml /tmp/matchforge-dev.yaml
 doctl apps create --spec /tmp/matchforge-dev.yaml
-# Note the app ID → GitHub secret DO_DEV_APP_ID → uncomment deploy-dev in workflow
+# Note the returned app ID → GitHub Actions secret DO_DEV_APP_ID
 ```
 
 ## Database init

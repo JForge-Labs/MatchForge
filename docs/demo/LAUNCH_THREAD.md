@@ -41,7 +41,7 @@ Post 8 (privacy stance — preempt the replies):
 Post 9 (builder cred):
 > Open source (MIT). FastAPI + X API v2 + Grok server-side agents.
 > Listed on the X Developer EXhibit → [exhibit link]
-> Repo → github.com/jfodchuk/MatchForge
+> Repo → github.com/JForge-Labs/MatchForge
 > @XDevelopers @xai
 
 Post 10 (CTA):

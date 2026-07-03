@@ -26,8 +26,8 @@ Align session work with open Asana tasks. Mark tasks complete in Asana when ship
 
 ## GitHub
 
-- **Repo:** https://github.com/jfodchuk/MatchForge (public, MIT)
-- **Profile:** https://github.com/jfodchuk
+- **Repo:** https://github.com/JForge-Labs/MatchForge (public, MIT)
+- **Org:** https://github.com/JForge-Labs
 - **PAT:** `GITHUB_TOKEN` in local secrets file only (never commit)
 - Push: `git push origin main` (use credential helper or `gh auth`, not token in remote URL)
 

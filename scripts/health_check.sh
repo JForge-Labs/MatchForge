@@ -1,5 +1,5 @@
 #!/bin/bash
-# MatchForge CT108 post-restart system health check.
+# MatchForge post-restart system health check.
 # Exit 0 = all critical checks pass; exit 1 = one or more failures.
 set -uo pipefail
 
@@ -79,9 +79,9 @@ run_checks() {
     pass "swap active ($(( swap_kb / 1024 ))MB)"
     swapon --show 2>/dev/null || true
   elif mount | grep -q ' / type zfs'; then
-    warn "swap not active — ZFS LXC needs host: pct set 108 -swap 512 (run pve_ct108_swap.sh on PVE)"
+    warn "swap not active — ZFS-backed hosts (e.g. LXC) need swap configured on the host, not in-container"
   else
-    warn "swap not active (expected 512MB per CT108 spec)"
+    warn "swap not active"
   fi
   if mount | awk '$3=="/"{print $6}' | grep -q rw; then
     pass "root filesystem read-write"
@@ -97,7 +97,7 @@ run_checks() {
 
   echo
   echo "--- Core services ---"
-  for svc in matchforge postgresql redis-server nginx docker tailscaled ollama; do
+  for svc in matchforge postgresql redis-server nginx docker; do
     check_service "$svc"
   done
   if systemctl --failed --no-legend 2>/dev/null | grep -q .; then

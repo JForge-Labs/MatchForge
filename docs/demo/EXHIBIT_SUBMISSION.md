@@ -45,7 +45,7 @@ open source (MIT).
 ## Links
 
 - Live app: https://match-forge.com
-- Repo: https://github.com/jfodchuk/MatchForge
+- Repo: https://github.com/JForge-Labs/MatchForge
 - Demo video: *(record per DEMO_SCRIPT below, upload, link here)*
 
 ## Demo script (for the video / GIFs)
