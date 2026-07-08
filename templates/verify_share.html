@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import x_logo %}
 {% block title %}@{{ report.handle }} — X-verified — MatchForge{% endblock %}
 
 {% block header %}
 <header class="page-header">
   <div class="container">
-    <h1><span class="x-logo" aria-hidden="true">𝕏</span> Verification report</h1>
+    <h1>{{ x_logo() }} Verification report</h1>
     <p class="tagline">Public X footprint, cross-examined by Grok — shared with consent by a MatchForge user</p>
   </div>
 </header>
@@ -13,7 +14,7 @@
 {% block content %}
 <article class="card share-card x-report">
   <div class="x-report-header">
-    <span class="x-logo" aria-hidden="true">𝕏</span>
+    {{ x_logo() }}
     <a href="{{ report.profile_url }}" target="_blank" rel="noopener" class="x-handle-link">@{{ report.handle }}</a>
     <span class="x-verdict x-verdict-{{ report.verdict }}">{{ report.verdict|replace("_", " ") }}</span>
     {% if report.x_social_proof_score is not none %}

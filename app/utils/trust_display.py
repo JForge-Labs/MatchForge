@@ -75,6 +75,36 @@ def _normalized_weights_pct(weights: dict | None) -> dict:
     }
 
 
+ENRICHMENT_LABELS = {
+    "done": "Checked ✓",
+    "queued": "Checking…",
+    "running": "Checking…",
+    "error": "Check failed",
+}
+
+
+def _photo_forensics(trust: dict) -> list[dict]:
+    """Per-photo vision findings — the receipts behind the trust badges."""
+    rows: list[dict] = []
+    for i, p in enumerate(trust.get("photo_analyses") or []):
+        if not isinstance(p, dict):
+            continue
+        unavailable = p.get("analysis_status", "analyzed") == "unavailable"
+        rows.append(
+            {
+                "index": i + 1,
+                "status": "unavailable" if unavailable else "analyzed",
+                "authenticity": None if unavailable else p.get("authenticity_score"),
+                "natural": None if unavailable else p.get("naturalness_score"),
+                "red_flags": [] if unavailable else (p.get("visual_red_flags") or [])[:3],
+                "signals": [] if unavailable else (p.get("positive_trust_signals") or [])[:3],
+                "tools": [] if unavailable else (p.get("editing_tools_detected") or [])[:3],
+                "explanation": p.get("explanation"),
+            }
+        )
+    return rows
+
+
 def _analysis_history(ranking) -> list[dict]:
     """Score snapshots + current state as display rows, newest first.
 
@@ -203,6 +233,7 @@ def trust_card_context(profile, ranking, preference=None) -> dict:
         "weights_pct": _normalized_weights_pct(weights),
         "rank_note": _rank_note(ranking),
         "history": _analysis_history(ranking),
+        "forensics": _photo_forensics(trust),
         "auth": _first_not_none(ranking.authenticity_score, profile.authenticity_score),
         "natural": _first_not_none(ranking.naturalness_score, profile.naturalness_score),
         "bot": _first_not_none(ranking.bot_risk_score, profile.bot_risk_score),
@@ -225,4 +256,5 @@ def trust_card_context(profile, ranking, preference=None) -> dict:
         "source_url": source_url,
         "enrichments": deduped_enrichments,
         "enrichment_status": profile.enrichment_status,
+        "enrichment_label": ENRICHMENT_LABELS.get(profile.enrichment_status),
     }

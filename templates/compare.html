@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import x_logo %}
 {% block title %}Compare candidates — MatchForge{% endblock %}
 
 {% block content %}
@@ -89,7 +90,7 @@
         {% endif %}
         {% if t.x_proof is not none %}
         <span class="badge badge-x {% if t.x_proof >= 70 %}badge-green{% elif t.x_proof >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
-          𝕏 Social proof {{ "%.0f"|format(t.x_proof) }}
+          {{ x_logo() }} Social proof {{ "%.0f"|format(t.x_proof) }}
         </span>
         {% endif %}
       </div>

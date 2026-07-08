@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import x_logo %}
 {% block title %}Dashboard — MatchForge{% endblock %}
 
 {% block header %}
@@ -45,7 +46,7 @@
   <div id="upload-status" class="status hidden"></div>
 
   <div class="x-lookup" id="x-lookup">
-    <h3 class="x-lookup-title"><span class="x-logo" aria-hidden="true">𝕏</span> Verify a match by X handle</h3>
+    <h3 class="x-lookup-title">{{ x_logo() }} Verify a match by X handle</h3>
     <p class="x-lookup-lead">No screenshot? Paste their @handle or x.com link — Grok cross-examines their public X footprint and scores social proof. ~{{ x_verify_cost }} tokens.</p>
     <div class="x-lookup-row">
       <input type="text" id="x-lookup-handle" class="x-input" placeholder="@handle or x.com/…" autocomplete="off">
@@ -134,7 +135,37 @@
   {% elif view == 'passed' %}
   <p class="empty">Nothing here — profiles you pass on will move to this tab.</p>
   {% else %}
-  <p class="empty">No profiles yet — upload a screenshot to get started.</p>
+  <div class="empty-state">
+    <article class="card ghost-card" aria-hidden="true">
+      <div class="card-header">
+        <div class="card-title-block">
+          <h3>Your first match</h3>
+          <span class="vet-badge vet-clear">Looks legit</span>
+        </div>
+        <div class="card-scores">
+          <span class="trust-score">84</span>
+          <span class="score-label">trust</span>
+          <span class="match-score">78</span>
+          <span class="score-label">match</span>
+        </div>
+      </div>
+      <div class="trust-badges">
+        <span class="badge badge-green">Catfish risk 9%</span>
+        <span class="badge badge-green">Authenticity 88%</span>
+        <span class="badge badge-yellow">Natural 61%</span>
+      </div>
+      <p class="explanation">Trust vetting, photo forensics, and a match score tuned to your goals appear here.</p>
+    </article>
+    <div class="empty-guide">
+      <h3>Your shortlist is empty</h3>
+      <ol class="empty-steps">
+        <li><strong>Screenshot a profile</strong> in any dating app — the full profile view works best.</li>
+        <li><strong>Drop it above</strong> (up to 10 at once). More screenshots of the same person merge into one workup.</li>
+        <li><strong>Review the verdict</strong> — trust badges, photo forensics, and a match score with its arithmetic shown.</li>
+      </ol>
+      <p class="empty-note">No screenshot? Verify any 𝕏 handle instead — the box above the shortlist.</p>
+    </div>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

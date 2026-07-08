@@ -1,3 +1,4 @@
+{% from "partials/icons.html" import x_logo %}
 {% set ranking = item.ranking %}
 {% set t = item.trust %}
 <article class="card card-{{ t.catfish_flag }}" data-ranking-id="{{ ranking.id }}" data-profile-id="{{ ranking.profile.id }}">
@@ -75,7 +76,9 @@
     {% if ranking.profile.extracted_data and ranking.profile.extracted_data.get('parse_error') %}
     <span class="enrich-status enrich-error" title="Vision model unreachable or parse failed">vision degraded</span>
     {% endif %}
-    <span class="enrich-status enrich-{{ t.enrichment_status }}">{{ t.enrichment_status }}</span>
+    {% if t.enrichment_label %}
+    <span class="enrich-status enrich-{{ t.enrichment_status }}">{{ t.enrichment_label }}</span>
+    {% endif %}
     {% if t.rank_note %}
     <span class="rank-note">{{ t.rank_note }}</span>
     {% endif %}
@@ -156,6 +159,27 @@
     <a href="/how-scoring-works" class="score-math-link">Full methodology →</a>
   </details>
 
+  {% if t.forensics %}
+  <details class="forensics-panel">
+    <summary>Photo forensics ({{ t.forensics|length }} photo{{ "s" if t.forensics|length != 1 }})</summary>
+    {% for f in t.forensics %}
+    <div class="forensic-row">
+      <span class="forensic-title">Photo {{ f.index }}{% if f.authenticity is not none %} · authenticity {{ "%.0f"|format(f.authenticity) }}{% endif %}{% if f.natural is not none %} · natural {{ "%.0f"|format(f.natural) }}{% endif %}</span>
+      {% if f.status == "unavailable" %}
+      <span class="badge badge-na">not analyzed</span>
+      {% else %}
+      <span class="forensic-chips">
+        {% for x in f.tools %}<span class="badge badge-yellow">{{ x }}</span>{% endfor %}
+        {% for x in f.red_flags %}<span class="badge badge-red">{{ x }}</span>{% endfor %}
+        {% for x in f.signals %}<span class="badge badge-green">{{ x }}</span>{% endfor %}
+      </span>
+      {% if f.explanation %}<p class="forensic-note">{{ f.explanation }}</p>{% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
+
   {% if t.history %}
   <details class="score-history">
     <summary>Analysis history ({{ t.history|length }})</summary>
@@ -216,12 +240,21 @@
     </span>
   </div>
 
+  {% set xv = t.x_verification %}
+  <details class="x-verify-wrap"{% if not (xv and xv.verdict) %} data-empty="1"{% endif %}>
+    <summary class="panel-summary">
+      {{ x_logo() }}
+      {% if xv and xv.verdict %}
+      <span>X verification — <span class="x-verdict x-verdict-{{ xv.verdict }}">{{ xv.verdict|replace("_", " ") }}</span>{% if xv.x_social_proof_score is not none %} · {{ "%.0f"|format(xv.x_social_proof_score) }}/100{% endif %}</span>
+      {% else %}
+      <span>Verify on X · ~{{ x_verify_cost }} tokens</span>
+      {% endif %}
+    </summary>
   <div class="x-verify-panel" data-profile-id="{{ ranking.profile.id }}">
-    {% set xv = t.x_verification %}
     {% if xv and xv.verdict %}
     <div class="x-report">
       <div class="x-report-header">
-        <span class="x-logo" aria-hidden="true">𝕏</span>
+        {{ x_logo() }}
         <a href="{{ xv.profile_url }}" target="_blank" rel="noopener" class="x-handle-link">@{{ xv.handle }}</a>
         <span class="x-verdict x-verdict-{{ xv.verdict }}">{{ xv.verdict|replace("_", " ") }}</span>
         {% if xv.x_social_proof_score is not none %}
@@ -295,7 +328,7 @@
 
     <div class="x-verify-form {% if xv and xv.verdict %}hidden{% endif %}" id="x-verify-form-{{ ranking.profile.id }}">
       <div class="x-verify-row">
-        <span class="x-logo" aria-hidden="true">𝕏</span>
+        {{ x_logo() }}
         <input
           type="text"
           id="x-handle-{{ ranking.profile.id }}"
@@ -313,9 +346,11 @@
     </div>
     <div id="x-verify-status-{{ ranking.profile.id }}" class="x-verify-status hidden" role="status" aria-live="polite"></div>
   </div>
+  </details>
 
+  <details class="agent-wrap">
+    <summary class="panel-summary">Enrich with agent · ~{{ agent_est_min }}+ tokens</summary>
   <div class="agent-panel" data-profile-id="{{ ranking.profile.id }}">
-    <label class="agent-label" for="agent-prompt-{{ ranking.profile.id }}">Enrich with agent</label>
     <div class="agent-compose" data-profile-id="{{ ranking.profile.id }}">
       <textarea
         id="agent-prompt-{{ ranking.profile.id }}"
@@ -339,6 +374,7 @@
       <button type="button" class="btn small primary" onclick="submitAgent({{ ranking.profile.id }})">Run agent</button>
     </div>
   </div>
+  </details>
 
   <div class="actions">
     <button class="btn small share-btn" onclick="shareAnalysis({{ ranking.id }})">Share</button>

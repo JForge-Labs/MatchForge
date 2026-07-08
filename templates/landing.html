@@ -1,26 +1,75 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
 {% block title %}MatchForge — AI Dating Intelligence{% endblock %}
 {% block main_class %}landing-main{% endblock %}
 
 {% block content %}
-<section class="hero">
+<section class="hero hero-split">
   <div class="hero-glow" aria-hidden="true"></div>
-  <p class="eyebrow">Personal safety · Screenshot-first · Private shortlist</p>
-  <h1>See who's real<br>before you swipe.</h1>
-  <p class="hero-lead">
-    MatchForge is your private due-diligence layer for dating. Upload publicly visible profile screenshots —
-    AI scores authenticity, catfish risk, and compatibility against your goals, then surfaces your best matches on a ranked shortlist.
-  </p>
-  <div class="hero-cta">
-    {% if authed %}
-    <a href="/dashboard" class="btn primary">Open Dashboard</a>
-    <a href="/onboarding" class="btn">Profile Settings</a>
-    {% else %}
-    <a href="/signup" class="btn primary">Get started free</a>
-    <a href="/login" class="btn">Sign in</a>
-    {% endif %}
+  <div class="hero-copy">
+    <p class="eyebrow">Personal safety · Screenshot-first · Private shortlist</p>
+    <h1>See who's real<br>before you swipe.</h1>
+    <p class="hero-lead">
+      MatchForge is your private due-diligence layer for dating. Upload publicly visible profile screenshots —
+      AI scores authenticity, catfish risk, and compatibility against your goals, then surfaces your best matches on a ranked shortlist.
+    </p>
+    <div class="hero-cta">
+      {% if authed %}
+      <a href="/dashboard" class="btn primary">Open Dashboard</a>
+      <a href="/onboarding" class="btn">Profile Settings</a>
+      {% else %}
+      <a href="/signup" class="btn primary">Get started free</a>
+      <a href="/login" class="btn">Sign in</a>
+      {% endif %}
+    </div>
+    <p class="hero-note">Free signup tokens included · Pay only for what you analyze</p>
   </div>
-  <p class="hero-note">Free signup tokens included · Pay only for what you analyze</p>
+
+  <div class="hero-visual" aria-hidden="true">
+    <article class="card hero-card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <h3>Alex, 29</h3>
+          <span class="vet-badge vet-clear">Looks legit</span>
+        </div>
+        <div class="card-scores">
+          <span class="trust-score">84</span>
+          <span class="score-label">trust</span>
+          <span class="match-score">78</span>
+          <span class="score-label">match</span>
+        </div>
+      </div>
+      <div class="card-top-scores">
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Compatibility</span>
+            <span class="score-bar-value">82</span>
+          </div>
+          <div class="score-bar-track"><div class="score-bar-fill score-bar-compat" style="width: 82%"></div></div>
+        </div>
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Attractiveness</span>
+            <span class="score-bar-value">74</span>
+          </div>
+          <div class="score-bar-track"><div class="score-bar-fill score-bar-attract" style="width: 74%"></div></div>
+        </div>
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Red flags</span>
+            <span class="score-bar-value score-bar-value-warn">12</span>
+          </div>
+          <div class="score-bar-track"><div class="score-bar-fill score-bar-red" style="width: 12%"></div></div>
+        </div>
+      </div>
+      <div class="trust-badges">
+        <span class="badge badge-green">Catfish risk 9%</span>
+        <span class="badge badge-green">Authenticity 88%</span>
+        <span class="badge badge-yellow">Natural 61%</span>
+      </div>
+      <p class="explanation">Consistent photos across platforms, detailed bio, verified public footprint. Light filtering on two photos — worth a look, not a worry.</p>
+    </article>
+  </div>
 </section>
 
 <section class="value-strip" aria-label="Product highlights">
@@ -40,22 +89,22 @@
 
 <section class="features">
   <article class="feature-card">
-    <span class="feature-icon" aria-hidden="true"></span>
+    <span class="feature-icon-wrap" aria-hidden="true">{{ icon("scan") }}</span>
     <h3>Screenshot-first input</h3>
     <p>Tinder, Bumble, Hinge, and more — universal input without brittle platform APIs. Drop a screenshot and go.</p>
   </article>
   <article class="feature-card">
-    <span class="feature-icon feature-icon-trust" aria-hidden="true"></span>
+    <span class="feature-icon-wrap" aria-hidden="true">{{ icon("shield") }}</span>
     <h3>Trust scoring</h3>
     <p>Authenticity, filter detection, catfish risk, and bot signals — each with clear explanations before you invest time.</p>
   </article>
   <article class="feature-card">
-    <span class="feature-icon feature-icon-rank" aria-hidden="true"></span>
+    <span class="feature-icon-wrap" aria-hidden="true">{{ icon("sliders") }}</span>
     <h3>Personalized ranking</h3>
     <p>Onboarding builds your preference vector. Every profile is scored for <em>you</em> — compatibility, attraction, and red flags.</p>
   </article>
   <article class="feature-card">
-    <span class="feature-icon feature-icon-privacy" aria-hidden="true"></span>
+    <span class="feature-icon-wrap" aria-hidden="true">{{ icon("lock") }}</span>
     <h3>Privacy-first hosted</h3>
     <p>Your data lives in your private account on our managed infrastructure. We don't sell your data or share your shortlist.</p>
   </article>
