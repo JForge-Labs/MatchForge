@@ -83,10 +83,22 @@ async def upload_screenshots(
     merged_profiles: list[Profile] = []
     trust_breakdown: list[TrustScoresOut] = []
     all_profiles: list[Profile] = []
+    failures: list[str] = []
 
     async with capacity_service.heavy_work_slot():
         for idx, upload in enumerate(files):
-            image_bytes = await read_validated_image(upload)
+            filename = upload.filename or f"screenshot {idx + 1}"
+            # One bad file must not sink the batch — record and move on.
+            try:
+                image_bytes = await read_validated_image(upload)
+            except HTTPException as exc:
+                reason = (
+                    exc.detail.get("message")
+                    if isinstance(exc.detail, dict)
+                    else str(exc.detail)
+                )
+                failures.append(f"{filename}: {reason}")
+                continue
             if not image_bytes:
                 continue
 
@@ -94,14 +106,11 @@ async def upload_screenshots(
                 image_bytes, user_context=user_context
             )
             if analysis.get("parse_error"):
-                raise HTTPException(
-                    503,
-                    detail={
-                        "error": "vision_failed",
-                        "message": "Vision analysis failed — no tokens charged.",
-                        "detail": analysis.get("parse_error"),
-                    },
+                failures.append(
+                    f"{filename}: vision analysis failed — "
+                    "no tokens charged for this file."
                 )
+                continue
 
             credit_service.charge_tokens(
                 db, account_id, "profile_screenshot", metadata={"file_index": idx}
@@ -232,6 +241,9 @@ async def upload_screenshots(
                     risk_factors=trust.get("risk_factors", []),
                 )
             )
+            # Per-file durability: a failure on a later screenshot must not
+            # roll back profiles the user already paid to analyze.
+            db.commit()
 
         if created_profiles:
             referral_service.mark_first_upload(db, account_id)
@@ -242,11 +254,20 @@ async def upload_screenshots(
         for p in all_profiles:
             db.refresh(p)
 
+    if failures and not all_profiles:
+        raise HTTPException(
+            422,
+            detail={"error": "all_files_failed", "message": " ".join(failures)},
+        )
+
     balance = credit_service.get_balance(db, account_id)
     processed = len(all_profiles)
     merge_note = ""
     if merged_profiles:
         merge_note = f" Enriched {len(merged_profiles)} existing profile(s)."
+    skip_note = ""
+    if failures:
+        skip_note = " Skipped: " + " ".join(failures)
     return UploadResult(
         profiles_created=len(created_profiles),
         profiles_merged=len(merged_profiles),
@@ -255,6 +276,6 @@ async def upload_screenshots(
         message=(
             f"Processed {processed} screenshot(s)"
             f" ({len(created_profiles)} new, {len(merged_profiles)} merged)."
-            f"{merge_note} Token balance: {balance}."
+            f"{merge_note} Token balance: {balance}.{skip_note}"
         ),
     )

@@ -1,4 +1,5 @@
 """xAI Grok LLM provider — vision and text for all environments."""
+import asyncio
 import base64
 import json
 import logging
@@ -103,17 +104,64 @@ def _parse_usage(body: dict, model: str) -> LlmUsage:
     return LlmUsage(model=model, input_tokens=inp, output_tokens=out, total_tokens=total)
 
 
-async def _responses_request(payload: dict, *, timeout: float = 900.0) -> tuple[str, LlmUsage]:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{XAI_API_BASE}/responses",
-            json=payload,
-            headers=_headers(),
-        )
-        resp.raise_for_status()
-        body = resp.json()
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 2
+
+
+def _retry_delay(resp: httpx.Response | None, attempt: int) -> float:
+    """Honor Retry-After when xAI sends one; else exponential backoff."""
+    if resp is not None:
+        retry_after = resp.headers.get("retry-after")
+        if retry_after:
+            try:
+                return min(30.0, max(1.0, float(retry_after)))
+            except ValueError:
+                pass
+    return 1.5 * (2**attempt)
+
+
+async def _responses_request(
+    payload: dict, *, timeout: float = 180.0
+) -> tuple[str, LlmUsage]:
     model = payload.get("model", "unknown")
-    return _extract_output_text(body), _parse_usage(body, model)
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(
+                    f"{XAI_API_BASE}/responses",
+                    json=payload,
+                    headers=_headers(),
+                )
+            if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
+                delay = _retry_delay(resp, attempt)
+                logger.warning(
+                    "xAI %s on %s — retry %d/%d in %.1fs",
+                    resp.status_code,
+                    model,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+            resp.raise_for_status()
+            body = resp.json()
+            return _extract_output_text(body), _parse_usage(body, model)
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            if attempt < _MAX_RETRIES:
+                delay = _retry_delay(None, attempt)
+                logger.warning(
+                    "xAI transport error on %s (%s) — retry %d/%d in %.1fs",
+                    model,
+                    exc,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+            raise
+    raise RuntimeError("unreachable")  # loop always returns or raises
 
 
 @dataclass
@@ -270,7 +318,7 @@ async def generate_text(
     *,
     model: str | None = None,
     system: str | None = None,
-    timeout: float = 600.0,
+    timeout: float = 120.0,
     temperature: float | None = None,
 ) -> tuple[str, LlmUsage]:
     """Text completion via xAI Responses API."""
@@ -290,7 +338,7 @@ async def generate_json(
     *,
     model: str | None = None,
     system: str | None = None,
-    timeout: float = 600.0,
+    timeout: float = 120.0,
     temperature: float | None = None,
 ) -> tuple[dict, LlmUsage]:
     """Text prompt expecting JSON response."""
@@ -307,7 +355,7 @@ async def analyze_image_json(
     model: str | None = None,
     max_dim: int = 1536,
     detail: str = "high",
-    timeout: float = 900.0,
+    timeout: float = 180.0,
     temperature: float | None = None,
 ) -> tuple[dict, LlmUsage]:
     """Vision + text prompt expecting JSON response."""
@@ -338,7 +386,7 @@ async def analyze_images_json(
     model: str | None = None,
     max_dim: int = 1536,
     detail: str = "high",
-    timeout: float = 900.0,
+    timeout: float = 240.0,
 ) -> tuple[dict, LlmUsage]:
     """Multi-image vision prompt expecting JSON (e.g. cross-platform photo check)."""
     model = model or settings.xai_vision_model

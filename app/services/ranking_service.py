@@ -175,7 +175,7 @@ async def rank_profile(
     )
     try:
         result, _usage = await llm_service.generate_json(
-            prompt, model=settings.xai_text_fast, timeout=600.0, temperature=0.0
+            prompt, model=settings.xai_text_fast, timeout=120.0, temperature=0.0
         )
         for key in ("compatibility_score", "attractiveness_score", "red_flag_score"):
             clamped = llm_service.clamp_score(result.get(key))
