@@ -47,8 +47,9 @@ def pick_share_hook(ranking_id: int) -> str:
     return SHARE_HOOKS[ranking_id % len(SHARE_HOOKS)]
 
 
-def share_og_description(trust_score: float, match_score: float) -> str:
-    return (
-        f"Trust {trust_score:.0f} · Match {match_score:.0f} — "
-        "AI-vetted dating profile breakdown"
-    )
+def share_og_description(
+    trust_score: float | None, match_score: float | None
+) -> str:
+    trust = f"{trust_score:.0f}" if trust_score is not None else "—"
+    match = f"{match_score:.0f}" if match_score is not None else "—"
+    return f"Trust {trust} · Match {match} — AI-vetted dating profile breakdown"

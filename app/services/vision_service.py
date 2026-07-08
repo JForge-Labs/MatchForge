@@ -122,31 +122,51 @@ def _build_vision_prompt(user_context: dict | None = None) -> str:
 
 
 async def _vision_analyze(
-    prompt: str, image_bytes: bytes, max_dim: int = 1024
+    prompt: str,
+    image_bytes: bytes,
+    max_dim: int = 1024,
+    temperature: float | None = None,
 ) -> dict:
     result, _usage = await llm_service.analyze_image_json(
-        prompt, image_bytes, max_dim=max_dim
+        prompt, image_bytes, max_dim=max_dim, temperature=temperature
     )
     return result
 
 
+_PHOTO_TRUST_SCORE_KEYS = (
+    "authenticity_score",
+    "ai_generated_likelihood",
+    "real_photo_confidence",
+    "naturalness_score",
+    "filter_heaviness",
+)
+
+
 async def analyze_photo_trust(image_bytes: bytes) -> dict:
-    """Single vision call for authenticity + filter/editing signals."""
+    """Single vision call for authenticity + filter/editing signals.
+
+    On failure returns analysis_status="unavailable" with NO scores — the
+    trust pipeline must never render fabricated numbers as real analysis.
+    """
     try:
-        return await _vision_analyze(TRUST_PHOTO_PROMPT, image_bytes)
+        result = await _vision_analyze(
+            TRUST_PHOTO_PROMPT, image_bytes, temperature=0.0
+        )
+        for key in _PHOTO_TRUST_SCORE_KEYS:
+            result[key] = llm_service.clamp_score(result.get(key))
+        result["analysis_status"] = "analyzed"
+        return result
     except Exception as exc:
         logger.warning("Combined photo trust analysis failed: %s", exc)
         return {
-            "authenticity_score": 50,
-            "ai_generated_likelihood": 30,
-            "real_photo_confidence": 50,
-            "naturalness_score": 60,
-            "filter_heaviness": 25,
+            "analysis_status": "unavailable",
             "visual_red_flags": [],
             "positive_trust_signals": [],
             "editing_tools_detected": [],
             "edit_regions": [],
-            "explanation": "Photo trust check unavailable.",
+            "explanation": (
+                "Photo trust check unavailable — this photo was not scored."
+            ),
         }
 
 

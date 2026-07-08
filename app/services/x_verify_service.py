@@ -346,9 +346,13 @@ def _persist_verification(
     if ranking:
         ranking.x_social_proof_score = report.get("x_social_proof_score")
         score = report.get("x_social_proof_score")
-        if score is not None:
-            # Social proof nudges percolation: verified-real rises, suspicious sinks
-            ranking.percolation_priority += (score - 50) * 0.3
+        if score is not None and ranking.feedback != "superlike":
+            # Social proof nudges percolation: verified-real rises, suspicious
+            # sinks. Derived from overall_score each time — re-verifying must
+            # replace the nudge, never accumulate it.
+            ranking.percolation_priority = (
+                (ranking.overall_score or 0) + (score - 50) * 0.3
+            )
 
     enrichment = (
         db.query(SocialEnrichment)

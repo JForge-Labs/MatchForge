@@ -100,7 +100,7 @@
   <div class="shortlist-header">
     <div>
       <h2>Shortlist</h2>
-      <p class="section-lead">Personal safety due diligence — ranked by match likelihood from <em>your</em> public profile screenshots. Trust vetting flags catfish risk; delete workups when done. <em>AI scores are probabilistic — verify yourself before meeting anyone.</em></p>
+      <p class="section-lead">Personal safety due diligence — ranked by match likelihood from <em>your</em> public profile screenshots. Trust vetting flags catfish risk; delete workups when done. <em>AI scores are probabilistic — verify yourself before meeting anyone.</em> <a href="/how-scoring-works" class="lead-link">How scoring works</a></p>
     </div>
     {% if cards %}
     {% set vet_n = cards|length if cards|length < 5 else 5 %}
@@ -157,11 +157,18 @@
         </div>
         <div class="card-header-right">
           <div class="card-scores">
-            <span class="trust-score" title="Overall trust score">{{ "%.0f"|format(t.overall_trust) }}</span>
+            {% if t.overall_trust is not none %}
+            <span class="trust-score" title="Overall trust score{% if t.confidence %} · {{ t.confidence.basis }}{% endif %}">{{ "%.0f"|format(t.overall_trust) }}</span>
+            {% else %}
+            <span class="trust-score trust-score-na" title="Trust could not be analyzed for this profile">—</span>
+            {% endif %}
             <span class="score-label">trust</span>
             <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
             <span class="score-label">match</span>
           </div>
+          {% if t.confidence %}
+          <span class="confidence-chip confidence-{{ t.confidence.tier }}" title="{{ t.confidence.basis }}">{{ t.confidence.tier|capitalize }} confidence</span>
+          {% endif %}
           <button
             type="button"
             class="btn-delete"
@@ -183,6 +190,9 @@
         <span class="enrich-status enrich-error" title="Vision model unreachable or parse failed">vision degraded</span>
         {% endif %}
         <span class="enrich-status enrich-{{ t.enrichment_status }}">{{ t.enrichment_status }}</span>
+        {% if t.rank_note %}
+        <span class="rank-note">{{ t.rank_note }}</span>
+        {% endif %}
       </div>
 
       <div class="trust-badges">
@@ -190,11 +200,15 @@
         <span class="badge {% if t.catfish_risk < 30 %}badge-green{% elif t.catfish_risk < 60 %}badge-yellow{% else %}badge-red{% endif %}">
           Catfish risk {{ "%.0f"|format(t.catfish_risk) }}%
         </span>
+        {% else %}
+        <span class="badge badge-na" title="This check could not run — no risk was assumed">Catfish risk — not analyzed</span>
         {% endif %}
         {% if t.auth is not none %}
         <span class="badge {% if t.auth >= 70 %}badge-green{% elif t.auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
           Authenticity {{ "%.0f"|format(t.auth) }}%
         </span>
+        {% else %}
+        <span class="badge badge-na" title="This check could not run — no risk was assumed">Authenticity — not analyzed</span>
         {% endif %}
         {% if t.natural is not none %}
         <span class="badge {% if t.natural >= 70 %}badge-green{% elif t.natural >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
@@ -227,6 +241,10 @@
       </ul>
       {% endif %}
 
+      {% for note in t.info_notes %}
+      <p class="vetting-line vetting-info">{{ note }}</p>
+      {% endfor %}
+
       {% if ranking.trust_explanation %}
       <p class="trust-warning">{{ ranking.trust_explanation }}</p>
       {% endif %}
@@ -238,6 +256,19 @@
       {% if ranking.explanation %}
       <p class="explanation">{{ ranking.explanation }}</p>
       {% endif %}
+
+      <details class="score-math">
+        <summary>How this score was computed</summary>
+        <p class="score-math-line">
+          Fit for you: <strong>{{ "%.0f"|format(t.fit) }}</strong>
+          <span class="score-math-weights">— your weights: compatibility {{ t.weights_pct.compatibility }}% · attractiveness {{ t.weights_pct.attractiveness }}% · red flags {{ t.weights_pct.red_flags }}%</span>
+        </p>
+        {% if t.trust_penalty > 0 %}
+        <p class="score-math-line">Trust penalty: <strong>−{{ "%.0f"|format(t.trust_penalty) }}</strong> <span class="score-math-weights">— driven by catfish/bot risk</span></p>
+        {% endif %}
+        <p class="score-math-line">Match score: <strong>{{ "%.0f"|format(ranking.overall_score) }}</strong></p>
+        <a href="/how-scoring-works" class="score-math-link">Full methodology →</a>
+      </details>
 
       {% if t.enrichments %}
       <div class="enrichment-links">

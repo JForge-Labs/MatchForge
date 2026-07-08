@@ -232,77 +232,136 @@ async def web_footprint_search(
     return result
 
 
-def _score_or(value, default: float) -> float:
-    """Default on None only — a real 0 (e.g. catfish risk 0) must survive."""
-    return float(value) if value is not None else float(default)
+# Published trust-dimension weights — /how-scoring-works must stay in sync.
+TRUST_WEIGHTS = {
+    "authenticity": 0.35,
+    "naturalness": 0.15,
+    "catfish": 0.30,
+    "bot": 0.10,
+    "consistency": 0.10,
+}
+X_PROOF_WEIGHT = 0.15
+
+
+def _score_of(trust: dict, key: str) -> float | None:
+    value = trust.get(key)
+    return float(value) if value is not None else None
+
+
+def _confidence(trust: dict, vetting: dict | None) -> dict:
+    """Deterministic confidence tier from evidence volume, not vibes."""
+    statuses = trust.get("dimension_status") or {}
+    degraded = any(s == "unavailable" for s in statuses.values())
+
+    photos = trust.get("photo_analyses") or []
+    analyzed_photos = [
+        p for p in photos if p.get("analysis_status", "analyzed") != "unavailable"
+    ]
+    core_present = sum(
+        1
+        for key in (
+            "authenticity_score",
+            "naturalness_score",
+            "catfish_risk_score",
+            "bot_risk_score",
+        )
+        if trust.get(key) is not None
+    )
+    has_x = trust.get("x_social_proof_score") is not None
+    web = (vetting or {}).get("web") or {}
+    has_web = web.get("status") == "ok"
+
+    basis: list[str] = []
+    if photos:
+        n = len(analyzed_photos)
+        basis.append(f"{n} photo{'s' if n != 1 else ''} analyzed")
+    if trust.get("bot_risk_score") is not None:
+        basis.append("bio/text signals")
+    if has_x:
+        basis.append("X verification")
+    if has_web:
+        basis.append("public web footprint")
+
+    if degraded or core_present <= 2:
+        tier = "low"
+    elif core_present >= 4 and (has_x or len(analyzed_photos) >= 3):
+        tier = "high"
+    else:
+        tier = "medium"
+    if degraded:
+        basis.append("some checks unavailable")
+
+    return {"tier": tier, "basis": "Based on " + (", ".join(basis) or "limited data")}
 
 
 def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:
-    """Single overall trust score and catfish flag for quick vetting."""
-    auth = _score_or(trust.get("authenticity_score"), 50)
-    natural = _score_or(trust.get("naturalness_score"), 50)
-    catfish = _score_or(trust.get("catfish_risk_score"), 30)
-    bot = _score_or(trust.get("bot_risk_score"), 20)
-    consistency = _score_or(trust.get("consistency_score"), 70)
-    x_proof_raw = trust.get("x_social_proof_score")
-    x_proof = float(x_proof_raw) if x_proof_raw is not None else None
+    """Overall trust score from whichever dimensions were actually analyzed.
+
+    Each present dimension contributes its published weight, renormalized over
+    the dimensions available — a missing analysis lowers confidence, never the
+    score. Returns overall_trust_score=None when nothing was analyzed.
+    """
+    auth = _score_of(trust, "authenticity_score")
+    natural = _score_of(trust, "naturalness_score")
+    catfish = _score_of(trust, "catfish_risk_score")
+    bot = _score_of(trust, "bot_risk_score")
+    consistency = _score_of(trust, "consistency_score")
+    x_proof = _score_of(trust, "x_social_proof_score")
 
     location_penalty = 0.0
     loc = (vetting or {}).get("location") or {}
     if loc.get("consistent") is False:
-        location_penalty = 15
-    elif loc.get("consistent") is None and not loc.get("claimed_location"):
-        location_penalty = 5
+        location_penalty = 10.0
 
-    web = (vetting or {}).get("web") or {}
-    if web.get("status") == "empty":
-        location_penalty += 5
-
-    if x_proof is not None:
-        # Fifth dimension: verified X social proof carries real weight
+    components = [
+        (auth, TRUST_WEIGHTS["authenticity"]),
+        (natural, TRUST_WEIGHTS["naturalness"]),
+        (100 - catfish if catfish is not None else None, TRUST_WEIGHTS["catfish"]),
+        (100 - bot if bot is not None else None, TRUST_WEIGHTS["bot"]),
+        (consistency, TRUST_WEIGHTS["consistency"]),
+        (x_proof, X_PROOF_WEIGHT),
+    ]
+    present = [(v, w) for v, w in components if v is not None]
+    if present:
+        total_weight = sum(w for _, w in present)
         overall = (
-            auth * 0.30
-            + natural * 0.10
-            + (100 - catfish) * 0.25
-            + (100 - bot) * 0.10
-            + consistency * 0.10
-            + x_proof * 0.15
-            - location_penalty
+            sum(v * w for v, w in present) / total_weight - location_penalty
         )
+        overall = max(0.0, min(100.0, round(overall, 1)))
     else:
-        overall = (
-            auth * 0.35
-            + natural * 0.15
-            + (100 - catfish) * 0.30
-            + (100 - bot) * 0.10
-            + consistency * 0.10
-            - location_penalty
-        )
-    overall = max(0, min(100, round(overall, 1)))
+        overall = None
 
-    if catfish >= 60 or overall < 40 or loc.get("consistent") is False:
-        flag = "flag"
-        label = "Catfish risk"
+    if overall is None:
+        flag, label = "unknown", "Not analyzed"
+    elif (catfish is not None and catfish >= 60) or overall < 40:
+        flag, label = "flag", "Catfish risk"
     elif x_proof is not None and x_proof < 30:
-        flag = "caution"
-        label = "Weak X social proof"
-    elif catfish >= 35 or overall < 60 or location_penalty >= 10:
-        flag = "caution"
-        label = "Verify further"
+        flag, label = "caution", "Weak X social proof"
+    elif (
+        (catfish is not None and catfish >= 35)
+        or overall < 60
+        or location_penalty >= 10
+    ):
+        flag, label = "caution", "Verify further"
     elif x_proof is not None and x_proof >= 70:
-        flag = "clear"
-        label = "X-verified"
+        flag, label = "clear", "X-verified"
     else:
-        flag = "clear"
-        label = "Looks legit"
+        flag, label = "clear", "Looks legit"
 
     risk_factors = list(trust.get("risk_factors") or [])
     if loc.get("consistent") is False:
-        risk_factors.append("Location mismatch between profile and bio")
-    if web.get("status") == "empty" and (trust.get("social_mismatch")):
-        risk_factors.append("Thin public web footprint")
+        # A regex heuristic must never accuse anyone outright — hedge it.
+        risk_factors.append(
+            "Bio and profile mention different places — worth asking about"
+        )
     if x_proof is not None and x_proof < 30:
         risk_factors.append("Weak social proof on X")
+
+    info_notes = list(trust.get("info_notes") or [])
+    catfish_info = (trust.get("catfish_analysis") or {}).get("info_notes") or []
+    for note in catfish_info:
+        if note not in info_notes:
+            info_notes.append(note)
 
     return {
         "overall_trust_score": overall,
@@ -312,6 +371,8 @@ def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:
         "x_social_proof_score": x_proof,
         "location_penalty": location_penalty,
         "risk_factors": risk_factors,
+        "info_notes": info_notes,
+        "confidence": _confidence(trust, vetting),
     }
 
 

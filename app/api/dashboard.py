@@ -99,7 +99,7 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
     cards = [
         {
             "ranking": r,
-            "trust": trust_card_context(r.profile, r),
+            "trust": trust_card_context(r.profile, r, preference=pref),
             "tokens_spent": profile_tokens_spent(r.profile, db),
         }
         for r in rankings

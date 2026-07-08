@@ -120,6 +120,16 @@ def shared_analysis(request: Request, token: str, db: Session = Depends(get_db))
     )
 
 
+@router.get("/how-scoring-works", response_class=HTMLResponse)
+def how_scoring_works(request: Request):
+    """Public scoring methodology — published weights and formulas."""
+    return render(
+        request,
+        "how_scores.html",
+        {"authed": is_authenticated(request), "active": None},
+    )
+
+
 @router.get("/robots.txt", include_in_schema=False)
 def robots_txt():
     return PlainTextResponse(

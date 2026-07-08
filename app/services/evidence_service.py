@@ -155,7 +155,6 @@ async def refresh_ranking(
         user_gender=user_gender,
         user_intentions=user_intentions,
         ui_context=ui_context,
-        trust_data=trust,
         user_profile=user_profile,
     )
     adjusted = trust_service.compute_trust_adjusted_scores(scores, trust)
@@ -165,5 +164,6 @@ async def refresh_ranking(
     ranking.red_flag_score = adjusted["red_flag_score"]
     ranking.percolation_priority = adjusted["percolation_priority"]
     ranking.explanation = adjusted.get("explanation")
+    ranking_service.apply_feedback_percolation(ranking)
     ranking_service.apply_ranking_to_profile(profile, adjusted)
     return ranking

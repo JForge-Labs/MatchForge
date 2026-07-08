@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}How MatchForge scores — MatchForge{% endblock %}
+
+{% block content %}
+<section class="methodology">
+  <h1>How MatchForge scores</h1>
+  <p class="section-lead">
+    Every number in your shortlist is computed the same way, every time, from
+    published weights — no hidden adjustments. This page is the complete
+    methodology.
+  </p>
+
+  <h2>1 · Fit — how well they match <em>you</em></h2>
+  <p>
+    Grok reads the profile and returns three sub-scores for your goals:
+    <strong>compatibility</strong>, <strong>attractiveness</strong>, and
+    <strong>red flags</strong> (0–100 each). Your fit score is then computed
+    deterministically from <em>your own weights</em> — the model never decides
+    the overall number:
+  </p>
+  <code class="formula">fit = compatibility × w<sub>c</sub> + attractiveness × w<sub>a</sub> + (100 − red flags) × w<sub>r</sub></code>
+  <p>
+    Default weights are 40% / 30% / 30%. Trust signals are deliberately
+    <em>not</em> shown to the model here — fit measures fit, nothing else.
+  </p>
+
+  <h2>2 · Trust — five dimensions, one score</h2>
+  <p>
+    Each profile is vetted across up to five dimensions. The overall trust
+    score is their weighted average; if a dimension couldn't be analyzed, its
+    weight is redistributed over the others — a missing check lowers
+    <em>confidence</em>, never the score itself.
+  </p>
+  <table>
+    <thead><tr><th>Dimension</th><th>Weight</th><th>What it detects</th></tr></thead>
+    <tbody>
+      <tr><td>Authenticity</td><td>35%</td><td>Real person vs AI-generated or stolen photos</td></tr>
+      <tr><td>Catfish risk</td><td>30%</td><td>Photo inconsistencies, known scam patterns</td></tr>
+      <tr><td>Naturalness</td><td>15%</td><td>Heavy filters and beauty editing</td></tr>
+      <tr><td>Bot risk</td><td>10%</td><td>Template bios, spam and automation patterns</td></tr>
+      <tr><td>Consistency</td><td>10%</td><td>Photo-to-photo and photo-to-bio coherence</td></tr>
+      <tr><td>𝕏 Social proof</td><td>15%*</td><td>Account age, follower health, claim checks via the X API + Grok's live investigation</td></tr>
+    </tbody>
+  </table>
+  <p class="section-lead">*Added to the blend only after you run an X verification; all weights renormalize.</p>
+
+  <h2>3 · Match — trust applied exactly once</h2>
+  <p>
+    Your match score is fit with a single, documented trust penalty. Risk below
+    30 is treated as noise; above that, the penalty grows linearly:
+  </p>
+  <code class="formula">match = fit × (1 − max(0, risk − 30) ÷ 140)&nbsp;&nbsp;where risk = max(catfish, bot)</code>
+  <p>
+    If catfish risk reaches <strong>70+</strong>, the match score is capped at
+    <strong>35</strong> outright — a profile that's probably fake can't rank
+    well no matter how attractive it looks. Every card's
+    “How this score was computed” panel shows this arithmetic:
+    fit − penalty = match.
+  </p>
+
+  <h2>4 · List order</h2>
+  <p>
+    The shortlist sorts by match score. Only two things can move a profile away
+    from that order, and both are labeled on the card: your own feedback
+    (Top / Like / Pass) and an X verification result.
+  </p>
+
+  <h2>5 · Confidence</h2>
+  <p>
+    Every trust score carries a confidence tier — <strong>high</strong>,
+    <strong>medium</strong>, or <strong>low</strong> — based on how much
+    evidence backed it: photos analyzed, bio signals, public web footprint, and
+    X verification. Hover the tier to see exactly what it was based on.
+  </p>
+
+  <h2>6 · When a check can't run</h2>
+  <p>
+    If a vision or analysis call fails, that dimension is shown as
+    <em>“not analyzed”</em> — grey, no number. We never substitute made-up
+    neutral scores, and absence of evidence is never treated as risk: a person
+    with no public footprint is marked <em>unverified</em>, not suspicious.
+  </p>
+
+  <h2>Honest limits</h2>
+  <p>
+    These scores are probabilistic decision-support from AI models — they are
+    not a background check and not ground truth about any person. Filters get
+    misjudged, real people get flagged, fakes slip through. Use the scores to
+    prioritize your own verification, and always confirm a match is real
+    before meeting anyone.
+  </p>
+
+  <div class="hero-cta">
+    {% if authed %}
+    <a href="/dashboard" class="btn primary">Back to dashboard</a>
+    {% else %}
+    <a href="/signup" class="btn primary">Try it free</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

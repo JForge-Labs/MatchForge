@@ -27,6 +27,17 @@ class LlmUsage:
     total_tokens: int = 0
 
 
+def clamp_score(value, lo: float = 0.0, hi: float = 100.0) -> float | None:
+    """Coerce a model-returned score to a float in [lo, hi]; None if unusable."""
+    if value is None:
+        return None
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(lo, min(hi, num))
+
+
 def parse_json_response(text: str) -> dict:
     """Extract JSON from model output, tolerating markdown fences."""
     text = text.strip()
@@ -260,6 +271,7 @@ async def generate_text(
     model: str | None = None,
     system: str | None = None,
     timeout: float = 600.0,
+    temperature: float | None = None,
 ) -> tuple[str, LlmUsage]:
     """Text completion via xAI Responses API."""
     model = model or settings.xai_text_fast
@@ -268,6 +280,8 @@ async def generate_text(
         input_msgs.append({"role": "system", "content": system})
     input_msgs.append({"role": "user", "content": prompt})
     payload = {"model": model, "input": input_msgs}
+    if temperature is not None:
+        payload["temperature"] = temperature
     return await _responses_request(payload, timeout=timeout)
 
 
@@ -277,10 +291,11 @@ async def generate_json(
     model: str | None = None,
     system: str | None = None,
     timeout: float = 600.0,
+    temperature: float | None = None,
 ) -> tuple[dict, LlmUsage]:
     """Text prompt expecting JSON response."""
     text, usage = await generate_text(
-        prompt, model=model, system=system, timeout=timeout
+        prompt, model=model, system=system, timeout=timeout, temperature=temperature
     )
     return parse_json_response(text), usage
 
@@ -293,6 +308,7 @@ async def analyze_image_json(
     max_dim: int = 1536,
     detail: str = "high",
     timeout: float = 900.0,
+    temperature: float | None = None,
 ) -> tuple[dict, LlmUsage]:
     """Vision + text prompt expecting JSON response."""
     model = model or settings.xai_vision_model
@@ -309,6 +325,8 @@ async def analyze_image_json(
             }
         ],
     }
+    if temperature is not None:
+        payload["temperature"] = temperature
     text, usage = await _responses_request(payload, timeout=timeout)
     return parse_json_response(text), usage
 

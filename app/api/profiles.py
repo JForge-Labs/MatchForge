@@ -104,9 +104,22 @@ async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
                     "bot_risk_score": profile.bot_risk_score,
                     "trust_explanation": trust_note,
                 }
+                # Recompute fit from the stored sub-scores — feeding the
+                # already trust-adjusted overall_score back in would compound
+                # the penalty on every deep vet.
+                fit = ranking_service.compute_fit_score(
+                    {
+                        "compatibility_score": ranking.compatibility_score,
+                        "attractiveness_score": ranking.attractiveness_score,
+                        "red_flag_score": ranking.red_flag_score,
+                    },
+                    ranking.preference_vector.weights
+                    if ranking.preference_vector
+                    else None,
+                )
                 adjusted = trust_service.compute_trust_adjusted_scores(
                     {
-                        "overall_score": ranking.overall_score,
+                        "overall_score": fit,
                         "compatibility_score": ranking.compatibility_score,
                         "attractiveness_score": ranking.attractiveness_score,
                         "red_flag_score": ranking.red_flag_score,
@@ -120,6 +133,7 @@ async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
                 ranking.authenticity_score = profile.authenticity_score
                 ranking.trust_explanation = trust_note
                 ranking.explanation = adjusted.get("explanation")
+                ranking_service.apply_feedback_percolation(ranking)
 
         profile.enrichment_status = "done"
         db.commit()

@@ -1,6 +1,7 @@
 """Format trust/vetting data for dashboard cards."""
 from urllib.parse import urlparse
 
+from app.services.ranking_service import DEFAULT_WEIGHTS, compute_fit_score
 from app.services.vetting_service import compute_trust_summary
 
 
@@ -63,7 +64,36 @@ def _first_not_none(*values):
     return None
 
 
-def trust_card_context(profile, ranking) -> dict:
+def _normalized_weights_pct(weights: dict | None) -> dict:
+    merged = {**DEFAULT_WEIGHTS, **(weights or {})}
+    total = sum(
+        merged.get(k, 0) for k in ("compatibility", "attractiveness", "red_flags")
+    ) or 1.0
+    return {
+        k: round(100 * merged.get(k, 0) / total)
+        for k in ("compatibility", "attractiveness", "red_flags")
+    }
+
+
+def _rank_note(ranking) -> str | None:
+    """One honest sentence whenever list position differs from the match score."""
+    feedback = getattr(ranking, "feedback", None)
+    if feedback == "superlike":
+        return "Pinned to top — your pick"
+    if feedback == "like":
+        return "Boosted — you liked this profile"
+    if feedback == "dislike":
+        return "Lowered — you passed"
+    perc = getattr(ranking, "percolation_priority", None)
+    overall = getattr(ranking, "overall_score", None) or 0
+    if perc is not None and perc - overall >= 3:
+        return "Boosted by X verification"
+    if perc is not None and overall - perc >= 3:
+        return "Lowered by X verification"
+    return None
+
+
+def trust_card_context(profile, ranking, preference=None) -> dict:
     trust = profile.trust_analysis or {}
     vetting = trust.get("vetting") or {}
     x_proof = _first_not_none(
@@ -85,17 +115,17 @@ def trust_card_context(profile, ranking) -> dict:
             ranking.bot_risk_score, profile.bot_risk_score
         ),
         "x_social_proof_score": x_proof,
-        "consistency_score": trust.get("consistency_score", 70),
+        "consistency_score": trust.get("consistency_score"),
         "risk_factors": trust.get("risk_factors", []),
         "social_mismatch": trust.get("social_mismatch", False),
+        "photo_analyses": trust.get("photo_analyses"),
+        "dimension_status": trust.get("dimension_status"),
+        "catfish_analysis": trust.get("catfish_analysis"),
+        "info_notes": trust.get("info_notes"),
     }
-    # Stored vetting summaries predate X verification — recompute when present
-    if x_proof is not None:
-        summary = compute_trust_summary(trust_inputs, vetting)
-    else:
-        summary = vetting.get("summary") or compute_trust_summary(
-            trust_inputs, vetting
-        )
+    # Always recompute: stored summaries predate X verification, confidence
+    # tiers, and renormalized weights. The computation is cheap and pure.
+    summary = compute_trust_summary(trust_inputs, vetting)
 
     loc = vetting.get("location") or {}
     web = vetting.get("web") or {}
@@ -112,11 +142,29 @@ def trust_card_context(profile, ranking) -> dict:
 
     source_url, deduped_enrichments = _dedupe_profile_links(profile, enrichments)
 
+    weights = getattr(preference, "weights", None)
+    fit = compute_fit_score(
+        {
+            "compatibility_score": getattr(ranking, "compatibility_score", None),
+            "attractiveness_score": getattr(ranking, "attractiveness_score", None),
+            "red_flag_score": getattr(ranking, "red_flag_score", None),
+        },
+        weights,
+    )
+
     return {
         "overall_trust": summary["overall_trust_score"],
         "catfish_flag": summary["catfish_flag"],
         "catfish_label": summary["catfish_flag_label"],
         "catfish_risk": summary["catfish_risk_score"],
+        "confidence": summary.get("confidence"),
+        "info_notes": summary.get("info_notes", []),
+        "fit": fit,
+        "trust_penalty": max(
+            0.0, round(fit - (getattr(ranking, "overall_score", None) or 0), 1)
+        ),
+        "weights_pct": _normalized_weights_pct(weights),
+        "rank_note": _rank_note(ranking),
         "auth": _first_not_none(ranking.authenticity_score, profile.authenticity_score),
         "natural": _first_not_none(ranking.naturalness_score, profile.naturalness_score),
         "bot": _first_not_none(ranking.bot_risk_score, profile.bot_risk_score),

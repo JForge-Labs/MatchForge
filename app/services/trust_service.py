@@ -44,7 +44,7 @@ Only cite employers and jobs if they appear in the bio or photo context above �
 SOCIAL ENRICHMENT:
 {social_findings}
 
-CURRENT SCAM TACTICS TRENDING ON X (auto-updated threat brief — weigh matches heavily):
+CURRENT SCAM TACTICS TRENDING ON X (auto-updated threat brief — flag ONLY concrete matches to these tactics; do not raise risk on vague resemblance):
 {threat_brief}
 
 Return ONLY valid JSON:
@@ -72,8 +72,10 @@ def _parse_json_response(text: str) -> dict:
         raise
 
 
-def _trust_badge(score: float, invert: bool = False) -> str:
-    """Return green/yellow/red for display."""
+def _trust_badge(score: float | None, invert: bool = False) -> str:
+    """Return green/yellow/red for display; 'na' when not analyzed."""
+    if score is None:
+        return "na"
     effective = 100 - score if invert else score
     if effective >= 70:
         return "green"
@@ -160,39 +162,76 @@ async def analyze_profile_trust(
             *[vision_service.analyze_photo_trust(img) for img in image_bytes_list]
         )
     )
+    # Photos whose vision call failed carry analysis_status="unavailable" and
+    # NO scores — they must not contribute fabricated numbers to any average.
+    analyzed_photos = [
+        p for p in photo_analyses if p.get("analysis_status") != "unavailable"
+    ]
 
     bot = await detect_bot_signals(bio, profile_metadata or {})
 
     catfish = await assess_catfish_risk(
-        photo_analyses, bio, social_enrichments or []
+        analyzed_photos, bio, social_enrichments or []
     )
 
-    auth_scores = [p.get("authenticity_score", 50) for p in photo_analyses]
-    nat_scores = [p.get("naturalness_score", 50) for p in photo_analyses]
-    ai_scores = [p.get("ai_generated_likelihood", 30) for p in photo_analyses]
-    filter_scores = [p.get("filter_heaviness", 30) for p in photo_analyses]
+    auth_scores = [
+        p["authenticity_score"]
+        for p in analyzed_photos
+        if p.get("authenticity_score") is not None
+    ]
+    nat_scores = [
+        p["naturalness_score"]
+        for p in analyzed_photos
+        if p.get("naturalness_score") is not None
+    ]
+    ai_scores = [
+        p["ai_generated_likelihood"]
+        for p in analyzed_photos
+        if p.get("ai_generated_likelihood") is not None
+    ]
+    filter_scores = [
+        p["filter_heaviness"]
+        for p in analyzed_photos
+        if p.get("filter_heaviness") is not None
+    ]
 
     authenticity = catfish.get("authenticity_score")
     if authenticity is None:  # a genuine 0 (confirmed fake) must not fall through
         authenticity = (
-            round(sum(auth_scores) / len(auth_scores), 1) if auth_scores else 50
+            round(sum(auth_scores) / len(auth_scores), 1) if auth_scores else None
         )
-    naturalness = round(sum(nat_scores) / len(nat_scores), 1) if nat_scores else 50
-    catfish_risk = catfish.get("catfish_risk_score", 30)
-    bot_risk = bot.get("bot_risk_score", 20)
+    naturalness = round(sum(nat_scores) / len(nat_scores), 1) if nat_scores else None
+    catfish_risk = catfish.get("catfish_risk_score")
+    bot_risk = bot.get("bot_risk_score")
+
+    if image_bytes_list and not analyzed_photos:
+        photos_status = "unavailable"
+    elif analyzed_photos:
+        photos_status = "analyzed"
+    else:
+        photos_status = "no_photos"
+    dimension_status = {
+        "photos": photos_status,
+        "bot": bot.get("analysis_status", "analyzed"),
+        "catfish": catfish.get("analysis_status", "analyzed"),
+    }
 
     explanations = []
     if catfish.get("trust_explanation"):
         explanations.append(catfish["trust_explanation"])
-    if bot.get("explanation") and bot_risk >= 55:
+    if bot.get("explanation") and bot_risk is not None and bot_risk >= 55:
         explanations.append(f"Bot risk: {bot['explanation']}")
-    for p in photo_analyses:
-        if p.get("ai_generated_likelihood", 0) >= 60:
+    for p in analyzed_photos:
+        if (p.get("ai_generated_likelihood") or 0) >= 60:
             explanations.append("Photos show signs of AI generation")
             break
-        if p.get("filter_heaviness", 0) >= 60:
+        if (p.get("filter_heaviness") or 0) >= 60:
             explanations.append("Heavy beauty filters or editing detected")
             break
+    if photos_status == "unavailable":
+        explanations.append(
+            "Photo analysis is temporarily unavailable — authenticity was not scored."
+        )
 
     trust_explanation = append_ai_disclaimer(
         " ".join(explanations) or "No major trust concerns flagged."
@@ -203,9 +242,9 @@ async def analyze_profile_trust(
         "naturalness_score": naturalness,
         "catfish_risk_score": catfish_risk,
         "bot_risk_score": bot_risk,
-        "ai_generated_likelihood": max(ai_scores) if ai_scores else 0,
-        "filter_heaviness": max(filter_scores) if filter_scores else 0,
-        "consistency_score": catfish.get("consistency_score", 70),
+        "ai_generated_likelihood": max(ai_scores) if ai_scores else None,
+        "filter_heaviness": max(filter_scores) if filter_scores else None,
+        "consistency_score": catfish.get("consistency_score"),
         "social_mismatch": catfish.get("social_mismatch", False),
         "trust_explanation": trust_explanation,
         "trust_badge": _trust_badge(authenticity),
@@ -214,8 +253,9 @@ async def analyze_profile_trust(
         "photo_analyses": photo_analyses,
         "bot_analysis": bot,
         "catfish_analysis": catfish,
+        "dimension_status": dimension_status,
         "risk_factors": catfish.get("risk_factors", [])
-        + (bot.get("signals", []) if bot_risk >= 50 else []),
+        + (bot.get("signals", []) if (bot_risk or 0) >= 50 else []),
     }
     summary = vetting_service.compute_trust_summary(result)
     result["overall_trust_score"] = summary["overall_trust_score"]
@@ -234,12 +274,19 @@ async def detect_bot_signals(
     prompt = BOT_DETECTION_PROMPT.format(bio_and_metadata=payload_text)
     try:
         result, _usage = await llm_service.generate_json(
-            prompt, model=settings.xai_text_fast, timeout=120.0
+            prompt, model=settings.xai_text_fast, timeout=120.0, temperature=0.0
         )
-        return _calibrate_bot_risk(result, bio)
+        result["bot_risk_score"] = llm_service.clamp_score(
+            result.get("bot_risk_score")
+        )
+        calibrated = _calibrate_bot_risk(result, bio)
+        calibrated["analysis_status"] = "analyzed"
+        return calibrated
     except Exception as exc:
         logger.warning("Bot detection failed: %s", exc)
-        return _fallback_bot_risk(bio)
+        fallback = _fallback_bot_risk(bio)
+        fallback["analysis_status"] = "heuristic"
+        return fallback
 
 
 async def assess_catfish_risk(
@@ -266,13 +313,18 @@ async def assess_catfish_risk(
             social_mismatch = True
 
     if not photo_analyses:
+        # No analyzable photos → we genuinely don't know. Report unavailable
+        # instead of fabricating mid-range risk numbers.
         return {
-            "catfish_risk_score": 40,
-            "authenticity_score": 50,
-            "consistency_score": 50,
+            "catfish_risk_score": None,
+            "authenticity_score": None,
+            "consistency_score": None,
             "social_mismatch": social_mismatch,
-            "risk_factors": ["No photos to analyze"],
-            "trust_explanation": "Insufficient photo data for authenticity check.",
+            "risk_factors": [],
+            "analysis_status": "unavailable",
+            "trust_explanation": (
+                "Photo authenticity could not be assessed for this profile."
+            ),
         }
 
     from app.services import threat_intel_service
@@ -285,36 +337,57 @@ async def assess_catfish_risk(
     )
     try:
         result, _usage = await llm_service.generate_json(
-            prompt, model=settings.xai_text_reason, timeout=180.0
+            prompt, model=settings.xai_text_reason, timeout=180.0, temperature=0.0
         )
+        for key in ("catfish_risk_score", "authenticity_score", "consistency_score"):
+            result[key] = llm_service.clamp_score(result.get(key))
+        result["analysis_status"] = "analyzed"
     except Exception as exc:
         logger.warning("Catfish synthesis failed: %s", exc)
-        ai_max = max(p.get("ai_generated_likelihood", 0) for p in photo_analyses)
-        auth_avg = sum(p.get("authenticity_score", 50) for p in photo_analyses) / len(
-            photo_analyses
-        )
-        risk = min(100, (100 - auth_avg) * 0.5 + ai_max * 0.4 + (20 if social_mismatch else 0))
+        # Derived from REAL per-photo vision scores — legitimate but labeled.
+        ai_max = max((p.get("ai_generated_likelihood") or 0) for p in photo_analyses)
+        auth_vals = [
+            p["authenticity_score"]
+            for p in photo_analyses
+            if p.get("authenticity_score") is not None
+        ]
+        if not auth_vals:
+            return {
+                "catfish_risk_score": None,
+                "authenticity_score": None,
+                "consistency_score": None,
+                "social_mismatch": social_mismatch,
+                "risk_factors": [],
+                "analysis_status": "unavailable",
+                "trust_explanation": (
+                    "Photo authenticity could not be assessed for this profile."
+                ),
+            }
+        auth_avg = sum(auth_vals) / len(auth_vals)
+        risk = min(100, (100 - auth_avg) * 0.5 + ai_max * 0.4)
         result = {
             "catfish_risk_score": round(risk, 1),
             "authenticity_score": round(auth_avg, 1),
-            "consistency_score": 60,
+            "consistency_score": None,
             "social_mismatch": social_mismatch,
             "risk_factors": [],
+            "analysis_status": "heuristic",
             "trust_explanation": (
                 "High catfish risk — profile photos show authenticity concerns"
                 if risk >= 60
-                else "Moderate authenticity — heuristic assessment"
+                else "Moderate authenticity — derived from photo analysis only"
             ),
         }
 
     if social_mismatch:
+        # Absence of a public footprint is NOT evidence of catfishing —
+        # privacy-conscious real people are common. Note it, don't punish it.
         result["social_mismatch"] = True
-        factors = result.get("risk_factors", [])
-        if "No public social footprint found" not in factors:
-            factors.append("No public social footprint found")
-        result["risk_factors"] = factors
-        if result.get("catfish_risk_score", 0) < 50:
-            result["catfish_risk_score"] = min(100, result.get("catfish_risk_score", 0) + 15)
+        notes = result.get("info_notes", [])
+        notes.append(
+            "No public social footprint found — could not verify either way"
+        )
+        result["info_notes"] = notes
 
     return result
 
@@ -328,44 +401,47 @@ def apply_social_trust_adjustment(
     )
 
 
-def compute_trust_adjusted_scores(
-    base_scores: dict, trust: dict
-) -> dict:
-    """Blend trust signals into overall score and percolation priority."""
-    base_overall = base_scores.get("overall_score", 50)
-    auth = trust.get("authenticity_score", 50)
-    natural = trust.get("naturalness_score", 50)
-    catfish = trust.get("catfish_risk_score", 30)
-    bot = trust.get("bot_risk_score", 20)
+# Trust modulates the match score in exactly ONE place: this function.
+# Published on /how-scoring-works — keep the page in sync with any change.
+TRUST_RISK_FLOOR = 30  # risk below this is noise and applies no penalty
+TRUST_RISK_SLOPE = 140  # match = fit × (1 − (risk − floor) / slope)
+TRUST_GATE_CATFISH = 70  # at/above this, match is capped outright
+TRUST_GATE_CAP = 35.0
 
-    trust_factor = (
-        (auth / 100) * 0.30
-        + (natural / 100) * 0.15
-        + (1 - catfish / 100) * 0.35
-        + (1 - bot / 100) * 0.20
-    )
-    adjusted = base_overall * trust_factor
-    adjusted -= catfish * 0.25
-    adjusted -= bot * 0.15
-    adjusted = max(0, min(100, round(adjusted, 1)))
 
-    percolation = adjusted - (catfish * 0.6) - (bot * 0.4)
-    if catfish >= 70:
-        percolation -= 30
-    if bot >= 65:
-        percolation -= 15
+def compute_trust_adjusted_scores(base_scores: dict, trust: dict) -> dict:
+    """Apply the single, documented trust adjustment to the fit score.
+
+    match = fit × (1 − max(0, risk − 30) / 140) where risk = max(catfish, bot);
+    if catfish ≥ 70 the match is additionally capped at 35. Dimensions that
+    were not analyzed (None) apply no penalty — absence of evidence is not
+    evidence of risk. percolation_priority equals the displayed match score;
+    explicit user feedback and X verification adjust it separately and visibly.
+    """
+    fit = base_scores.get("overall_score", 50)
+    catfish = trust.get("catfish_risk_score")
+    bot = trust.get("bot_risk_score")
+
+    risks = [r for r in (catfish, bot) if r is not None]
+    risk = max(risks) if risks else 0.0
+    adjusted = fit * (1 - max(0.0, risk - TRUST_RISK_FLOOR) / TRUST_RISK_SLOPE)
+    if catfish is not None and catfish >= TRUST_GATE_CATFISH:
+        adjusted = min(adjusted, TRUST_GATE_CAP)
+    adjusted = max(0.0, min(100.0, round(adjusted, 1)))
 
     trust_note = trust.get("trust_explanation", "")
     explanation = base_scores.get("explanation", "")
-    if trust_note and catfish >= 40:
+    if trust_note and catfish is not None and catfish >= 40:
         explanation = f"{trust_note} {explanation}"
 
     return {
         **base_scores,
         "overall_score": adjusted,
-        "percolation_priority": round(percolation, 1),
-        "authenticity_score": auth,
-        "naturalness_score": natural,
+        "fit_score": round(fit, 1),
+        "trust_penalty": round(fit - adjusted, 1),
+        "percolation_priority": adjusted,
+        "authenticity_score": trust.get("authenticity_score"),
+        "naturalness_score": trust.get("naturalness_score"),
         "catfish_risk_score": catfish,
         "bot_risk_score": bot,
         "trust_explanation": append_ai_disclaimer(trust_note),

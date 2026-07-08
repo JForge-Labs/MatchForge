@@ -139,10 +139,18 @@ def format_share_text(
     hook: str | None = None,
 ) -> str:
     lead = hook or pick_share_hook(ranking.id)
+    trust_txt = (
+        f"{trust['overall_trust']:.0f}"
+        if trust.get("overall_trust") is not None
+        else "—"
+    )
+    match_txt = (
+        f"{ranking.overall_score:.0f}" if ranking.overall_score is not None else "—"
+    )
     lines = [
         f"{lead} — AI trust vetting on a dating profile",
         "",
-        f"Trust {trust['overall_trust']:.0f}/100 · Match {ranking.overall_score:.0f}/100",
+        f"Trust {trust_txt}/100 · Match {match_txt}/100",
     ]
     if trust.get("catfish_risk") is not None:
         lines.append(f"Catfish risk {trust['catfish_risk']:.0f}%")

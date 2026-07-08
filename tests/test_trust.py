@@ -26,7 +26,7 @@ def test_trust_badges():
     assert _trust_badge(80, invert=True) == "red"
 
 
-def test_high_catfish_lowers_percolation():
+def test_high_catfish_gates_the_match_score():
     base = {
         "overall_score": 80,
         "compatibility_score": 75,
@@ -43,11 +43,44 @@ def test_high_catfish_lowers_percolation():
     }
     adjusted = compute_trust_adjusted_scores(base, trust)
     assert adjusted["overall_score"] < base["overall_score"]
-    assert adjusted["percolation_priority"] < 30
+    # catfish ≥ 70 caps the match at the gate value
+    assert adjusted["overall_score"] <= 35
+    # sort order equals the displayed score — no invisible divergence
+    assert adjusted["percolation_priority"] == adjusted["overall_score"]
+    assert adjusted["fit_score"] == 80
+    assert adjusted["trust_penalty"] == round(80 - adjusted["overall_score"], 1)
+
+
+def test_low_risk_applies_no_penalty():
+    base = {"overall_score": 72.0, "explanation": ""}
+    trust = {"catfish_risk_score": 20, "bot_risk_score": 15}
+    adjusted = compute_trust_adjusted_scores(base, trust)
+    assert adjusted["overall_score"] == 72.0
+    assert adjusted["trust_penalty"] == 0
+
+
+def test_missing_trust_dimensions_apply_no_penalty():
+    base = {"overall_score": 64.0, "explanation": ""}
+    adjusted = compute_trust_adjusted_scores(base, {})
+    assert adjusted["overall_score"] == 64.0
+    assert adjusted["catfish_risk_score"] is None
+    assert adjusted["bot_risk_score"] is None
+
+
+def test_adjustment_is_idempotent_on_reapplication_of_fit():
+    """Re-running the adjustment from the same fit gives the same match."""
+    base = {"overall_score": 70.0, "explanation": ""}
+    trust = {"catfish_risk_score": 55, "bot_risk_score": 20}
+    first = compute_trust_adjusted_scores(base, trust)
+    second = compute_trust_adjusted_scores(base, trust)
+    assert first["overall_score"] == second["overall_score"]
 
 
 if __name__ == "__main__":
     test_bot_heuristic_generic_bio_stays_moderate()
     test_trust_badges()
-    test_high_catfish_lowers_percolation()
+    test_high_catfish_gates_the_match_score()
+    test_low_risk_applies_no_penalty()
+    test_missing_trust_dimensions_apply_no_penalty()
+    test_adjustment_is_idempotent_on_reapplication_of_fit()
     print("All trust tests passed.")

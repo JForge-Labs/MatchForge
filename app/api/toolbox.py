@@ -175,7 +175,6 @@ async def upload_screenshots(
                 user_gender=user.gender,
                 user_intentions=user.intentions,
                 ui_context=user.ui_context,
-                trust_data=trust,
                 user_profile=onboarding_service.user_profile_context(user),
             )
             scores = trust_service.compute_trust_adjusted_scores(base_scores, trust)
@@ -195,6 +194,7 @@ async def upload_screenshots(
                 ranking.trust_explanation = trust.get("trust_explanation")
                 ranking.explanation = scores.get("explanation")
                 ranking.percolation_priority = scores.get("percolation_priority", 0)
+                ranking_service.apply_feedback_percolation(ranking)
             else:
                 ranking = Ranking(
                     profile_id=profile.id,

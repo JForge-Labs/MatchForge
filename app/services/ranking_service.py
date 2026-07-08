@@ -27,14 +27,11 @@ PERSONALIZATION CONTEXT:
 PROFILE TO EVALUATE:
 {profile_data}
 
-TRUST / AUTHENTICITY SIGNALS:
-{trust_data}
-
 Score this candidate FOR THIS SPECIFIC USER — not generically.
+Score pure fit only: trust/authenticity is assessed by a separate system and
+applied afterward, so do NOT penalize for suspected catfishing, bots, or filters here.
 ACCURACY: Only cite employers, jobs, and lifestyle facts explicitly present in PROFILE TO EVALUATE (bio, work, employer, prompts, vision_analysis). Never infer occupation or business ownership from display names or usernames alone.
-Apply strong penalties for high catfish_risk, bot_risk, AI-generated photos, or heavy filters.
-Boost profiles with high authenticity and naturalness scores.
-Weight compatibility, attractiveness, and red flags per their intentions:
+Interpret each dimension per their intentions:
 - LTR/marriage: values alignment and emotional availability matter most
 - Casual/hookups: chemistry and clear intentions matter most
 - Friendship: shared interests and reliability matter most
@@ -44,14 +41,53 @@ Return ONLY valid JSON:
   "compatibility_score": 0-100,
   "attractiveness_score": 0-100,
   "red_flag_score": 0-100 (higher = more red flags FOR THIS USER),
-  "overall_score": 0-100,
   "explanation": "2-3 sentences tailored to this user's goals and gender context",
   "conversation_starters": ["3 openers matching their style and intentions"],
   "key_strengths": ["top 3 strengths for THIS user"],
   "key_concerns": ["concerns specific to their intentions"]
 }}
 
-Red flags should penalize overall_score. Use the user's ui_context tone in explanations."""
+Do NOT return an overall score — it is computed deterministically from the
+user's own weights. Use the user's ui_context tone in explanations."""
+
+DEFAULT_WEIGHTS = {"compatibility": 0.4, "attractiveness": 0.3, "red_flags": 0.3}
+
+
+def compute_fit_score(scores: dict, weights: dict | None) -> float:
+    """Deterministic weighted fit — the user's weights, verifiably applied.
+
+    fit = compatibility·w_c + attractiveness·w_a + (100 − red_flags)·w_r,
+    with weights renormalized so they always sum to 1.
+    """
+    w = {**DEFAULT_WEIGHTS, **(weights or {})}
+    total = (
+        w.get("compatibility", 0) + w.get("attractiveness", 0) + w.get("red_flags", 0)
+    )
+    if total <= 0:
+        w, total = dict(DEFAULT_WEIGHTS), 1.0
+    compat = llm_service.clamp_score(scores.get("compatibility_score"))
+    attract = llm_service.clamp_score(scores.get("attractiveness_score"))
+    red = llm_service.clamp_score(scores.get("red_flag_score"))
+    fit = (
+        (compat if compat is not None else 50) * w.get("compatibility", 0)
+        + (attract if attract is not None else 50) * w.get("attractiveness", 0)
+        + (100 - (red if red is not None else 50)) * w.get("red_flags", 0)
+    ) / total
+    return round(max(0.0, min(100.0, fit)), 1)
+
+
+def apply_feedback_percolation(ranking: Ranking) -> None:
+    """Re-apply explicit user feedback after any recompute.
+
+    Without this, re-analysis (new screenshot, note, deep vet) silently buries
+    a superliked match — the app must never forget what the user told it.
+    """
+    if ranking.feedback == "superlike":
+        ranking.percolation_priority = 999.0
+    elif ranking.feedback == "like":
+        ranking.percolation_priority = (ranking.overall_score or 0) + 20
+    elif ranking.feedback == "dislike":
+        ranking.percolation_priority = (ranking.overall_score or 0) - 50
 
 
 def _parse_json_response(text: str) -> dict:
@@ -77,20 +113,14 @@ def _fallback_scores(profile: Profile, pref: PreferenceVector) -> dict:
     compatibility = min(100, 50 + green * 8 - red * 10)
     attractiveness = min(100, 55 + confidence * 30)
     red_flag = min(100, red * 15)
-    weights = pref.weights or {}
-    w_compat = weights.get("compatibility", 0.4)
-    w_attr = weights.get("attractiveness", 0.3)
-    w_red = weights.get("red_flags", 0.3)
-    overall = (
-        compatibility * w_compat
-        + attractiveness * w_attr
-        + (100 - red_flag) * w_red
-    )
-    return {
+    scores = {
         "compatibility_score": round(compatibility, 1),
         "attractiveness_score": round(attractiveness, 1),
         "red_flag_score": round(red_flag, 1),
-        "overall_score": round(overall, 1),
+    }
+    return {
+        **scores,
+        "overall_score": compute_fit_score(scores, pref.weights),
         "explanation": append_ai_disclaimer(
             f"Heuristic score: {green} green flags, {red} red flags detected. "
             "LLM ranking unavailable — using rule-based fallback."
@@ -107,10 +137,13 @@ async def rank_profile(
     user_gender: str | None = None,
     user_intentions: list[str] | None = None,
     ui_context: dict | None = None,
-    trust_data: dict | None = None,
     user_profile: dict | None = None,
 ) -> dict:
-    """Score a profile against a preference vector using local LLM."""
+    """Score pure fit via LLM sub-scores; overall is computed deterministically.
+
+    Trust is intentionally NOT given to the model — it modulates the final
+    score exactly once, in trust_service.compute_trust_adjusted_scores.
+    """
     traits = preference.traits or {}
     profile_block = ""
     if user_profile:
@@ -139,12 +172,15 @@ async def rank_profile(
         ),
         ui_context=json.dumps(ui_context or {}, indent=2),
         profile_data=json.dumps(profile_data, indent=2),
-        trust_data=json.dumps(trust_data or profile.trust_analysis or {}, indent=2),
     )
     try:
         result, _usage = await llm_service.generate_json(
-            prompt, model=settings.xai_text_fast, timeout=600.0
+            prompt, model=settings.xai_text_fast, timeout=600.0, temperature=0.0
         )
+        for key in ("compatibility_score", "attractiveness_score", "red_flag_score"):
+            clamped = llm_service.clamp_score(result.get(key))
+            result[key] = clamped if clamped is not None else 50.0
+        result["overall_score"] = compute_fit_score(result, preference.weights)
         if result.get("explanation"):
             result["explanation"] = append_ai_disclaimer(result["explanation"])
         return result

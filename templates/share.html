@@ -21,9 +21,9 @@
       <span class="vet-badge vet-{{ trust.catfish_flag }}">{{ trust.catfish_label }}</span>
     </div>
     <div class="card-scores">
-      <span class="trust-score">{{ "%.0f"|format(trust.overall_trust) }}</span>
+      <span class="trust-score">{{ "%.0f"|format(trust.overall_trust) if trust.overall_trust is not none else "—" }}</span>
       <span class="score-label">trust</span>
-      <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
+      <span class="match-score">{{ "%.0f"|format(ranking.overall_score) if ranking.overall_score is not none else "—" }}</span>
       <span class="score-label">match</span>
     </div>
   </div>
