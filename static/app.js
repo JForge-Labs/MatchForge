@@ -134,12 +134,20 @@ function parseErrorDetail(data) {
     return data.detail.message || "We're scaling up — please try again in a few minutes.";
   }
   if (typeof data.detail === "object" && data.detail.error === "insufficient_tokens") {
-    return `Need ${data.detail.required} tokens (balance: ${data.detail.balance}). Buy tokens coming soon.`;
+    return `You need ${data.detail.required} tokens for this (balance: ${data.detail.balance}).`;
   }
   if (Array.isArray(data.detail)) {
     return data.detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
   }
   return String(data.detail);
+}
+
+function errorCodeOf(data) {
+  const detail = data?.detail;
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    return detail.error || null;
+  }
+  return null;
 }
 
 if (uploadForm && fileInput) {
@@ -171,7 +179,11 @@ if (uploadForm && fileInput) {
       } catch (_) {
         /* non-JSON error body */
       }
-      if (!resp.ok) throw new Error(parseErrorDetail(data) || `Upload failed (${resp.status})`);
+      if (!resp.ok) {
+        const error = new Error(parseErrorDetail(data) || `Upload failed (${resp.status})`);
+        error.code = errorCodeOf(data);
+        throw error;
+      }
       let statusMsg = data.message || "Upload complete.";
       if (data.trust_breakdown?.length) {
         const lines = data.trust_breakdown.map((t, i) => {
@@ -190,19 +202,32 @@ if (uploadForm && fileInput) {
       showStatus(statusMsg, "ok");
       setTimeout(() => window.location.reload(), 2500);
     } catch (err) {
-      const isCapacity = String(err.message || "").includes("influx of new users");
-      showStatus(err.message, isCapacity ? "capacity" : "error");
+      const isCapacity =
+        err.code === "capacity" ||
+        String(err.message || "").includes("influx of new users");
+      const link =
+        err.code === "insufficient_tokens"
+          ? { href: "/billing", label: "Add tokens" }
+          : null;
+      showStatus(err.message, isCapacity ? "capacity" : "error", link);
       stopUploadProgress(true);
     }
   });
 }
 
-function showStatus(msg, type) {
+function showStatus(msg, type, link) {
   if (!uploadStatus) return;
   uploadStatus.textContent = msg;
   uploadStatus.className = "status" + (type ? ` ${type}` : "");
   uploadStatus.classList.remove("hidden");
   uploadStatus.style.whiteSpace = "pre-wrap";
+  if (link && link.href) {
+    const a = document.createElement("a");
+    a.href = link.href;
+    a.textContent = `${link.label} →`;
+    a.className = "status-link";
+    uploadStatus.appendChild(a);
+  }
 }
 
 const agentFileStore = new Map();
@@ -437,8 +462,35 @@ function initAgentPanels() {
 
 initAgentPanels();
 
+const deleteArmTimers = new Map();
+
+function disarmDeleteButton(btn, profileId) {
+  btn.dataset.armed = "";
+  btn.textContent = "×";
+  btn.classList.remove("armed");
+  btn.title = "Delete this profile workup";
+  deleteArmTimers.delete(profileId);
+}
+
 async function deleteProfile(profileId) {
   const card = document.querySelector(`[data-profile-id="${profileId}"]`);
+  const btn = card ? card.querySelector(".btn-delete") : null;
+  if (btn && !btn.dataset.armed) {
+    btn.dataset.armed = "1";
+    btn.textContent = "Delete?";
+    btn.classList.add("armed");
+    btn.title = "Click again to permanently delete this workup";
+    deleteArmTimers.set(
+      profileId,
+      setTimeout(() => disarmDeleteButton(btn, profileId), 4000)
+    );
+    return;
+  }
+  const timer = deleteArmTimers.get(profileId);
+  if (timer) {
+    clearTimeout(timer);
+    deleteArmTimers.delete(profileId);
+  }
   try {
     const resp = await fetch(`/profiles/${profileId}`, {
       method: "DELETE",

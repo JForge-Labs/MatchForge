@@ -1,6 +1,11 @@
 """Public pages: landing, home, shared analysis, and verification badge views."""
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from sqlalchemy.orm import Session
 
 from app.core.auth import is_authenticated
@@ -50,6 +55,7 @@ def shared_verification(request: Request, token: str, db: Session = Depends(get_
                 "og_title": "Verification link expired — MatchForge",
                 "og_description": "This X-verification report is no longer available.",
             },
+            status_code=404,
         )
     _profile, report = loaded
     score = report.get("x_social_proof_score")
@@ -109,6 +115,22 @@ def shared_analysis(request: Request, token: str, db: Session = Depends(get_db))
         request,
         template,
         {"authed": is_authenticated(request), "active": None, **data},
+        # 410 keeps search engines from indexing dead share URLs
+        status_code=200 if kind == "active" else 410,
+    )
+
+
+@router.get("/robots.txt", include_in_schema=False)
+def robots_txt():
+    return PlainTextResponse(
+        "User-agent: *\n"
+        "Disallow: /share/\n"
+        "Disallow: /admin\n"
+        "Disallow: /dashboard\n"
+        "Disallow: /billing\n"
+        "Disallow: /onboarding\n"
+        "Disallow: /auth/\n"
+        "Allow: /\n"
     )
 
 

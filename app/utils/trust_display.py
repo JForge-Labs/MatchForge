@@ -55,21 +55,35 @@ def _dedupe_profile_links(profile, enrichments: list) -> tuple[str | None, list]
     return show_source, deduped
 
 
+def _first_not_none(*values):
+    """Coalesce on None only — a legitimate score of 0 must survive."""
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def trust_card_context(profile, ranking) -> dict:
     trust = profile.trust_analysis or {}
     vetting = trust.get("vetting") or {}
-    x_proof = getattr(ranking, "x_social_proof_score", None) or getattr(
-        profile, "x_social_proof_score", None
+    x_proof = _first_not_none(
+        getattr(ranking, "x_social_proof_score", None),
+        getattr(profile, "x_social_proof_score", None),
     )
     x_verification = getattr(profile, "x_verification", None) or {}
     trust_inputs = {
-        "authenticity_score": ranking.authenticity_score
-        or profile.authenticity_score,
-        "naturalness_score": ranking.naturalness_score
-        or profile.naturalness_score,
-        "catfish_risk_score": ranking.catfish_risk_score
-        or profile.catfish_risk_score,
-        "bot_risk_score": ranking.bot_risk_score or profile.bot_risk_score,
+        "authenticity_score": _first_not_none(
+            ranking.authenticity_score, profile.authenticity_score
+        ),
+        "naturalness_score": _first_not_none(
+            ranking.naturalness_score, profile.naturalness_score
+        ),
+        "catfish_risk_score": _first_not_none(
+            ranking.catfish_risk_score, profile.catfish_risk_score
+        ),
+        "bot_risk_score": _first_not_none(
+            ranking.bot_risk_score, profile.bot_risk_score
+        ),
         "x_social_proof_score": x_proof,
         "consistency_score": trust.get("consistency_score", 70),
         "risk_factors": trust.get("risk_factors", []),
@@ -103,9 +117,9 @@ def trust_card_context(profile, ranking) -> dict:
         "catfish_flag": summary["catfish_flag"],
         "catfish_label": summary["catfish_flag_label"],
         "catfish_risk": summary["catfish_risk_score"],
-        "auth": ranking.authenticity_score or profile.authenticity_score,
-        "natural": ranking.naturalness_score or profile.naturalness_score,
-        "bot": ranking.bot_risk_score or profile.bot_risk_score,
+        "auth": _first_not_none(ranking.authenticity_score, profile.authenticity_score),
+        "natural": _first_not_none(ranking.naturalness_score, profile.naturalness_score),
+        "bot": _first_not_none(ranking.bot_risk_score, profile.bot_risk_score),
         "x_proof": x_proof,
         "x_verification": x_verification or None,
         "x_verdict": x_verification.get("verdict"),

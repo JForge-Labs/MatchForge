@@ -232,13 +232,18 @@ async def web_footprint_search(
     return result
 
 
+def _score_or(value, default: float) -> float:
+    """Default on None only — a real 0 (e.g. catfish risk 0) must survive."""
+    return float(value) if value is not None else float(default)
+
+
 def compute_trust_summary(trust: dict, vetting: dict | None = None) -> dict:
     """Single overall trust score and catfish flag for quick vetting."""
-    auth = float(trust.get("authenticity_score") or 50)
-    natural = float(trust.get("naturalness_score") or 50)
-    catfish = float(trust.get("catfish_risk_score") or 30)
-    bot = float(trust.get("bot_risk_score") or 20)
-    consistency = float(trust.get("consistency_score") or 70)
+    auth = _score_or(trust.get("authenticity_score"), 50)
+    natural = _score_or(trust.get("naturalness_score"), 50)
+    catfish = _score_or(trust.get("catfish_risk_score"), 30)
+    bot = _score_or(trust.get("bot_risk_score"), 20)
+    consistency = _score_or(trust.get("consistency_score"), 70)
     x_proof_raw = trust.get("x_social_proof_score")
     x_proof = float(x_proof_raw) if x_proof_raw is not None else None
 

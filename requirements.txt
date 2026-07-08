@@ -12,6 +12,7 @@ python-multipart
 httpx
 playwright
 pillow
+pillow-heif
 jinja2
 aiofiles
 itsdangerous

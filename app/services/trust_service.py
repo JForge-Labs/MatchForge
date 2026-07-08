@@ -172,9 +172,11 @@ async def analyze_profile_trust(
     ai_scores = [p.get("ai_generated_likelihood", 30) for p in photo_analyses]
     filter_scores = [p.get("filter_heaviness", 30) for p in photo_analyses]
 
-    authenticity = catfish.get("authenticity_score") or (
-        round(sum(auth_scores) / len(auth_scores), 1) if auth_scores else 50
-    )
+    authenticity = catfish.get("authenticity_score")
+    if authenticity is None:  # a genuine 0 (confirmed fake) must not fall through
+        authenticity = (
+            round(sum(auth_scores) / len(auth_scores), 1) if auth_scores else 50
+        )
     naturalness = round(sum(nat_scores) / len(nat_scores), 1) if nat_scores else 50
     catfish_risk = catfish.get("catfish_risk_score", 30)
     bot_risk = bot.get("bot_risk_score", 20)

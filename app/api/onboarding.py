@@ -18,6 +18,7 @@ from app.schemas.onboarding import OnboardingProfileOut, OnboardingStatus
 from app.services import capacity_service, legal_service, onboarding_service
 from app.utils.legal import policies_accepted
 from app.utils.templates import render
+from app.utils.upload_validation import read_validated_image
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
@@ -82,7 +83,7 @@ async def save_profile(
     ]
     example_bytes: list[bytes] = []
     for upload in examples or []:
-        data = await upload.read()
+        data = await read_validated_image(upload)
         if data:
             example_bytes.append(data)
 
@@ -92,7 +93,7 @@ async def save_profile(
 
     avatar_bytes: bytes | None = None
     if avatar:
-        avatar_bytes = await avatar.read()
+        avatar_bytes = await read_validated_image(avatar)
         if not avatar_bytes:
             avatar_bytes = None
 

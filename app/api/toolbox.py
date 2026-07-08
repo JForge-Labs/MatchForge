@@ -21,6 +21,7 @@ from app.services import (
     vision_service,
 )
 from app.services.model_router import route
+from app.utils.upload_validation import MAX_FILES_PER_BATCH, read_validated_image
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/toolbox", tags=["toolbox"])
@@ -57,6 +58,17 @@ async def upload_screenshots(
 
     upload_cost = route("profile_screenshot").token_cost
     valid_files = [f for f in files if f]
+    if len(valid_files) > MAX_FILES_PER_BATCH:
+        raise HTTPException(
+            422,
+            detail={
+                "error": "too_many_files",
+                "message": (
+                    f"Upload up to {MAX_FILES_PER_BATCH} screenshots at a time. "
+                    "No tokens were charged."
+                ),
+            },
+        )
     needed = upload_cost * len(valid_files)
     credit_service.ensure_can_afford(
         db, account_id, needed, activity="profile_screenshot"
@@ -74,7 +86,7 @@ async def upload_screenshots(
 
     async with capacity_service.heavy_work_slot():
         for idx, upload in enumerate(files):
-            image_bytes = await upload.read()
+            image_bytes = await read_validated_image(upload)
             if not image_bytes:
                 continue
 

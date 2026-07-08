@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.account import Account, AuthToken
-from app.models.profile import Profile
+from app.models.profile import Profile, ProfileEvidence, Ranking, SocialEnrichment
 from app.models.user import UserProfile
 from app.services import affiliate_service, credit_service, email_service, referral_service
 
@@ -74,6 +74,23 @@ def _send_token_email(account: Account, purpose: str, raw_token: str) -> None:
         )
 
 
+def _dev_link_allowed() -> bool:
+    """Raw auth tokens may be shown in the UI only outside production.
+
+    In production an unconfigured SMTP must fail closed: exposing the token
+    would let any visitor sign in as any email address.
+    """
+    if email_service.smtp_configured():
+        return False
+    if get_settings().app_env == "production":
+        logger.error(
+            "SMTP is not configured in production — auth emails cannot be "
+            "sent and sign-in links are withheld."
+        )
+        return False
+    return True
+
+
 def request_signup(
     db: Session,
     email: str,
@@ -104,7 +121,7 @@ def request_signup(
 
     raw = _issue_token(db, account, "signup_verify")
     _send_token_email(account, "signup_verify", raw)
-    return "sent", raw if not email_service.smtp_configured() else None
+    return "sent", raw if _dev_link_allowed() else None
 
 
 def request_login_link(db: Session, email: str) -> tuple[str, str | None]:
@@ -119,11 +136,11 @@ def request_login_link(db: Session, email: str) -> tuple[str, str | None]:
     if not account.email_verified_at:
         raw = _issue_token(db, account, "signup_verify")
         _send_token_email(account, "signup_verify", raw)
-        return "unverified", raw if not email_service.smtp_configured() else None
+        return "unverified", raw if _dev_link_allowed() else None
 
     raw = _issue_token(db, account, "login_magic")
     _send_token_email(account, "login_magic", raw)
-    return "sent", raw if not email_service.smtp_configured() else None
+    return "sent", raw if _dev_link_allowed() else None
 
 
 def verify_token(db: Session, raw_token: str, purpose: str) -> Account | None:
@@ -189,6 +206,7 @@ def delete_account(db: Session, account_id: int) -> bool:
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         return False
+    email = account.email
 
     user = (
         db.query(UserProfile).filter(UserProfile.account_id == account_id).first()
@@ -197,8 +215,19 @@ def delete_account(db: Session, account_id: int) -> bool:
         _unlink_upload(user.avatar_path)
         _unlink_upload(user.selfie_path)
 
-    for profile in db.query(Profile).filter(Profile.account_id == account_id).all():
-        uploads = Path("data/uploads") / "profiles" / str(profile.id)
+    # rankings/social_enrichments have no ON DELETE CASCADE — remove them
+    # explicitly or the account delete fails with an IntegrityError.
+    profile_ids = [
+        pid
+        for (pid,) in db.query(Profile.id).filter(Profile.account_id == account_id)
+    ]
+    if profile_ids:
+        for model in (Ranking, SocialEnrichment, ProfileEvidence):
+            db.query(model).filter(model.profile_id.in_(profile_ids)).delete(
+                synchronize_session=False
+            )
+    for pid in profile_ids:
+        uploads = Path("data/uploads") / str(pid)
         if uploads.is_dir():
             shutil.rmtree(uploads, ignore_errors=True)
 
@@ -206,5 +235,5 @@ def delete_account(db: Session, account_id: int) -> bool:
 
     db.delete(account)
     db.commit()
-    logger.info("Deleted account id=%s email=%s", account_id, account.email)
+    logger.info("Deleted account id=%s email=%s", account_id, email)
     return True

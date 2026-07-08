@@ -33,6 +33,7 @@ from app.services import (
     vetting_service,
 )
 from app.services.model_router import route
+from app.utils.upload_validation import read_validated_image
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -216,7 +217,7 @@ async def profile_agent(
     for upload in files or []:
         if not upload:
             continue
-        data = await upload.read()
+        data = await read_validated_image(upload)
         if data:
             images.append(data)
 
@@ -300,7 +301,7 @@ async def add_message_screenshot(
     require_auth(request)
     account_id = get_account_id(request)
     profile = _owned_profile(db, profile_id, account_id)
-    image_bytes = await file.read()
+    image_bytes = await read_validated_image(file)
     if not image_bytes:
         raise HTTPException(400, "Empty file")
     credit_service.charge_tokens(

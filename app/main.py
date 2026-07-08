@@ -6,11 +6,15 @@ Run (with venv active):
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.core.capacity_handlers import capacity_aware_http_handler
+from app.core.capacity_handlers import (
+    capacity_aware_http_handler,
+    unhandled_exception_handler,
+)
 
 from app.api import (
     account,
@@ -66,15 +70,71 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
 
 
+_is_prod = settings.app_env == "production"
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="Screenshot-first, privacy-first dating intelligence toolbox.",
     lifespan=lifespan,
+    # The interactive API docs enumerate every endpoint of a billed product —
+    # keep them off the public internet.
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
 
+
+class HeadToGetMiddleware:
+    """Answer HEAD requests (uptime monitors, crawlers) as body-less GETs."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["method"] == "HEAD":
+            async def send_without_body(message):
+                if message["type"] == "http.response.body":
+                    message = {**message, "body": b""}
+                await send(message)
+
+            await self.app(dict(scope, method="GET"), receive, send_without_body)
+            return
+        await self.app(scope, receive, send)
+
+
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data: https:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self' https://checkout.stripe.com"
+)
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    headers = response.headers
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("X-Frame-Options", "DENY")
+    headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    headers.setdefault("Content-Security-Policy", _CSP)
+    if _is_prod:
+        headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
+app.add_middleware(HeadToGetMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
-app.add_exception_handler(HTTPException, capacity_aware_http_handler)
+app.add_exception_handler(StarletteHTTPException, capacity_aware_http_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(health.router)
 app.include_router(account.router)

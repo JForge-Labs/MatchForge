@@ -113,6 +113,44 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; }
 .status.hidden { display: none; }
 .status.ok { border-color: var(--green); }
 .status.error { border-color: var(--red); }
+
+.status-link {
+  display: inline-block;
+  margin-left: 0.5rem;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.btn-delete.armed {
+  width: auto;
+  padding: 0 0.6rem;
+  border-color: var(--red);
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.error-page {
+  text-align: center;
+  padding: 5rem 1rem 4rem;
+}
+
+.error-page .error-code {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.error-page h1 { font-size: 2rem; margin: 0.5rem 0 0.75rem; }
+
+.error-page .error-message {
+  color: var(--muted);
+  max-width: 32rem;
+  margin: 0 auto 1.75rem;
+}
+
 .status.capacity {
   border-color: var(--accent);
   background: rgba(124, 108, 240, 0.08);

@@ -3,6 +3,13 @@ from io import BytesIO
 
 from PIL import Image, ImageOps
 
+try:  # iPhone camera-roll photos are HEIC; stock Pillow cannot open them
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:  # pragma: no cover — optional dependency
+    pass
+
 
 def open_normalized(image_bytes: bytes) -> Image.Image:
     """Open image bytes and apply EXIF orientation so pixels match display intent."""

@@ -129,6 +129,8 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "agent_est_min": agent_est,
             "agent_image_cost": route("profile_agent_image").token_cost,
             "x_verify_cost": route("x_verify").token_cost,
+            "upload_cost": route("profile_screenshot").token_cost,
+            "deep_vet_cost": route("deep_vet").token_cost,
             "authed": is_authenticated(request),
             "active": "dashboard",
         },

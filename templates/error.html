@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ error_headline }} — MatchForge{% endblock %}
+
+{% block content %}
+<section class="error-page">
+  <p class="error-code">{{ error_code }}</p>
+  <h1>{{ error_headline }}</h1>
+  <p class="error-message">{{ error_message }}</p>
+  <div class="hero-cta">
+    {% if authed %}
+    <a href="/dashboard" class="btn primary">Back to dashboard</a>
+    {% else %}
+    <a href="/" class="btn primary">Back to home</a>
+    <a href="/login" class="btn">Sign in</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

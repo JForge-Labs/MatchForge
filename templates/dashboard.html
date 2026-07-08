@@ -16,7 +16,7 @@
 {% block content %}
 <section id="upload-section" class="upload-section">
   <h2>Upload Screenshots</h2>
-  <p>Drag dating or social profile screenshots here (Tinder, Bumble, Facebook, Instagram, etc.). Analysis uses Grok vision — ~12 tokens per profile upload.</p>
+  <p>Drag dating or social profile screenshots here (Tinder, Bumble, Facebook, Instagram, etc.). Analysis uses Grok vision — ~{{ upload_cost }} tokens per profile upload.</p>
   <form id="upload-form" enctype="multipart/form-data">
     <div id="drop-zone" class="drop-zone">
       <input type="file" id="file-input" name="files" multiple accept="image/*">
@@ -103,7 +103,11 @@
       <p class="section-lead">Personal safety due diligence — ranked by match likelihood from <em>your</em> public profile screenshots. Trust vetting flags catfish risk; delete workups when done. <em>AI scores are probabilistic — verify yourself before meeting anyone.</em></p>
     </div>
     {% if cards %}
-    <button type="button" class="btn" id="vet-top-btn" onclick="vetTopCandidates()">Vet top 5</button>
+    {% set vet_n = cards|length if cards|length < 5 else 5 %}
+    <button type="button" class="btn" id="vet-top-btn" onclick="vetTopCandidates()"
+            title="Deep social + web vetting for your top {{ vet_n }} candidates">
+      Vet top {{ vet_n }} · ~{{ deep_vet_cost * vet_n }} tokens
+    </button>
     {% endif %}
   </div>
 
