@@ -54,11 +54,104 @@ function startUploadProgress(fileCount) {
   if (fileInput) fileInput.disabled = true;
   uploadStepIndex = 0;
   if (uploadStepTimer) clearInterval(uploadStepTimer);
-  uploadStepTimer = startStepCycler(uploadProgressStep, UPLOAD_STEPS);
+  if (uploadProgressStep) uploadProgressStep.textContent = "Uploading screenshots…";
   showStatus(
     `Processing ${fileCount} screenshot${fileCount === 1 ? "" : "s"} — vision, trust, and ranking in flight.`,
     "processing"
   );
+}
+
+const FILE_STAGE_LABELS = {
+  queued: "waiting for a slot…",
+  analyzing: "reading profile + photo forensics…",
+  scoring: "scoring trust + fit for you…",
+  done: "done",
+  failed: "failed",
+};
+const FILE_STAGE_FRACTION = { queued: 0, analyzing: 0.45, scoring: 0.85, done: 1, failed: 1 };
+
+function renderJobProgress(job) {
+  const files = job.files || [];
+  const total = files.length || 1;
+  const progress =
+    files.reduce((sum, f) => sum + (FILE_STAGE_FRACTION[f.stage] ?? 0), 0) / total;
+  const track = uploadProgress?.querySelector(".upload-progress-track");
+  const bar = uploadProgress?.querySelector(".upload-progress-bar");
+  track?.classList.add("real");
+  if (bar) bar.style.width = `${Math.round(6 + progress * 94)}%`;
+  if (!uploadProgressStep) return;
+  const active = files.find((f) => f.stage === "analyzing" || f.stage === "scoring");
+  if (active) {
+    const n = files.indexOf(active) + 1;
+    uploadProgressStep.textContent =
+      total > 1
+        ? `Screenshot ${n} of ${total} — ${FILE_STAGE_LABELS[active.stage]}`
+        : FILE_STAGE_LABELS[active.stage];
+  } else if (job.status === "running" && job.message) {
+    uploadProgressStep.textContent = job.message;
+  }
+}
+
+function pollUploadJob(jobId) {
+  if (uploadStepTimer) {
+    clearInterval(uploadStepTimer);
+    uploadStepTimer = null;
+  }
+  let misses = 0;
+  const poll = async () => {
+    let job = null;
+    try {
+      const resp = await fetch(`/toolbox/upload-jobs/${jobId}`, {
+        credentials: "same-origin",
+      });
+      if (!resp.ok) throw new Error(`status ${resp.status}`);
+      job = await resp.json();
+      misses = 0;
+    } catch (_) {
+      misses += 1;
+      if (misses >= 4) {
+        stopUploadProgress(true);
+        showStatus(
+          "Analysis was interrupted — refresh to see any completed profiles.",
+          "error"
+        );
+        return;
+      }
+      setTimeout(poll, 3000);
+      return;
+    }
+    renderJobProgress(job);
+    if (job.status !== "done" && job.status !== "error") {
+      setTimeout(poll, 2500);
+      return;
+    }
+    stopUploadProgress(true);
+    if (fileInput) {
+      fileInput.value = "";
+      updateFileSelection();
+    }
+    if (job.status === "error") {
+      showStatus(job.error || "Analysis failed.", "error");
+      return;
+    }
+    showStatus(job.message || "Analysis complete.", "ok");
+    const doneFiles = (job.files || []).filter(
+      (f) => f.stage === "done" && f.profile_id
+    );
+    const seen = new Set();
+    let newProfiles = 0;
+    for (const f of doneFiles) {
+      if (seen.has(f.profile_id)) continue;
+      seen.add(f.profile_id);
+      if (!f.merged) newProfiles += 1;
+      await refreshCard(f.profile_id, { highlight: true });
+    }
+    const statEl = document.querySelector(".stats .stat-num");
+    if (statEl && newProfiles && /^\d+$/.test(statEl.textContent.trim())) {
+      statEl.textContent = String(Number(statEl.textContent.trim()) + newProfiles);
+    }
+  };
+  setTimeout(poll, 1200);
 }
 
 function stopUploadProgress(resetButton = true) {
@@ -184,23 +277,8 @@ if (uploadForm && fileInput) {
         error.code = errorCodeOf(data);
         throw error;
       }
-      let statusMsg = data.message || "Upload complete.";
-      if (data.trust_breakdown?.length) {
-        const lines = data.trust_breakdown.map((t, i) => {
-          const auth = t.authenticity_score != null ? `${Math.round(t.authenticity_score)}% auth` : "";
-          const nat = t.naturalness_score != null ? `${Math.round(t.naturalness_score)}% natural` : "";
-          const cat = t.catfish_risk_score != null ? `${Math.round(t.catfish_risk_score)}% catfish` : "";
-          const bot = t.bot_risk_score != null ? `${Math.round(t.bot_risk_score)}% bot` : "";
-          const note = t.trust_explanation ? ` — ${t.trust_explanation}` : "";
-          return `#${i + 1}: ${[auth, nat, cat, bot].filter(Boolean).join(", ")}${note}`;
-        });
-        statusMsg += "\n" + lines.join("\n");
-      }
-      if (data.profiles_merged) {
-        statusMsg += `\n(${data.profiles_merged} existing profile(s) enriched — no duplicate tiles)`;
-      }
-      showStatus(statusMsg, "ok");
-      setTimeout(() => window.location.reload(), 2500);
+      // 202 accepted — poll the job for real per-file progress
+      pollUploadJob(data.job_id);
     } catch (err) {
       const isCapacity =
         err.code === "capacity" ||
@@ -213,6 +291,61 @@ if (uploadForm && fileInput) {
       stopUploadProgress(true);
     }
   });
+}
+
+function showToast(msg, type = "ok") {
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("visible"));
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+async function refreshCard(profileId, { highlight = false } = {}) {
+  try {
+    const resp = await fetch(`/dashboard/cards/${profileId}`, {
+      credentials: "same-origin",
+    });
+    if (!resp.ok) return false;
+    const html = await resp.text();
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html.trim();
+    const fresh = tpl.content.querySelector("article.card");
+    if (!fresh) return false;
+    const existing = document.querySelector(
+      `article.card[data-profile-id="${profileId}"]`
+    );
+    if (existing) {
+      existing.replaceWith(fresh);
+    } else {
+      let cards = document.querySelector(".cards");
+      if (!cards) {
+        document.querySelector(".shortlist .empty")?.remove();
+        cards = document.createElement("div");
+        cards.className = "cards";
+        document.querySelector(".shortlist")?.appendChild(cards);
+      }
+      cards.prepend(fresh);
+    }
+    if (highlight) {
+      fresh.classList.add("card-new");
+      setTimeout(() => fresh.classList.remove("card-new"), 2400);
+    }
+    initAgentPanels();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function showStatus(msg, type, link) {
@@ -418,6 +551,8 @@ function initAgentPanels() {
   document.querySelectorAll(".agent-panel").forEach((panel) => {
     const profileId = panel.dataset.profileId;
     if (!profileId) return;
+    if (panel.dataset.bound === "1") return;
+    panel.dataset.bound = "1";
 
     const compose = panel.querySelector(".agent-compose");
     const textarea = panel.querySelector(".agent-prompt");
@@ -504,11 +639,18 @@ async function deleteProfile(profileId) {
       setTimeout(() => {
         card.remove();
         if (!document.querySelector(".cards .card")) {
-          window.location.reload();
+          const cards = document.querySelector(".cards");
+          if (cards) {
+            const empty = document.createElement("p");
+            empty.className = "empty";
+            empty.textContent =
+              "No profiles yet — upload a screenshot to get started.";
+            cards.replaceWith(empty);
+          }
         }
       }, 200);
     }
-    showStatus("Profile removed.", "ok");
+    showToast("Profile removed", "ok");
   } catch (err) {
     showStatus(err.message, "error");
   }
@@ -582,7 +724,8 @@ async function submitAgent(profileId) {
       `Agent done (+${data.tokens_charged} tokens, ${data.tokens_spent_total} total on profile). ${acts}. Balance: ${data.balance}`,
       "ok"
     );
-    setTimeout(() => window.location.reload(), 1800);
+    await refreshCard(profileId, { highlight: true });
+    showToast("Agent findings merged into the card", "ok");
   } catch (err) {
     showStatus(err.message, "error");
   } finally {
@@ -602,6 +745,7 @@ async function submitAgent(profileId) {
 
 async function vetTopCandidates() {
   const btn = document.getElementById("vet-top-btn");
+  const originalLabel = btn ? btn.textContent : "";
   if (btn) {
     btn.disabled = true;
     btn.textContent = "Vetting…";
@@ -613,13 +757,20 @@ async function vetTopCandidates() {
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(parseErrorDetail(data) || "Vet top failed");
-    showStatus(`Deep vetting queued for top ${data.length} candidate(s)`, "ok");
-    setTimeout(() => window.location.reload(), 2500);
+    showStatus(
+      `Deep vetting queued for top ${data.length} candidate(s) — cards update automatically as results land.`,
+      "ok"
+    );
+    const ids = data.map((r) => r.profile_id).filter(Boolean);
+    [12000, 32000].forEach((delay) =>
+      setTimeout(() => ids.forEach((id) => refreshCard(id)), delay)
+    );
   } catch (err) {
     showStatus(err.message, "error");
+  } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "Vet top 5";
+      btn.textContent = originalLabel;
     }
   }
 }
@@ -741,7 +892,7 @@ async function submitXVerify(profileId) {
         ` (+${data.tokens_charged} tokens). Balance: ${data.balance}`,
       "ok"
     );
-    setTimeout(() => window.location.reload(), 1600);
+    await refreshCard(profileId, { highlight: true });
   } catch (err) {
     showStatus(err.message, "error");
     if (statusEl) {
@@ -795,7 +946,16 @@ async function xLookup() {
       `@${data.report?.handle} verified — ${data.report?.verdict?.replaceAll("_", " ")}. New tile added to your shortlist.`,
       "ok"
     );
-    setTimeout(() => window.location.reload(), 1600);
+    if (data.profile_id) {
+      await refreshCard(data.profile_id, { highlight: true });
+      if (handleEl) handleEl.value = "";
+      if (statusEl) {
+        statusEl.classList.add("hidden");
+        statusEl.classList.remove("processing");
+      }
+    } else {
+      setTimeout(() => window.location.reload(), 1600);
+    }
   } catch (err) {
     showStatus(err.message, "error");
     if (statusEl) {
@@ -865,6 +1025,9 @@ async function shareXVerification(profileId) {
 }
 
 async function feedback(rankingId, type) {
+  const card = document.querySelector(
+    `article.card[data-ranking-id="${rankingId}"]`
+  );
   try {
     const resp = await fetch("/profiles/feedback", {
       method: "POST",
@@ -873,8 +1036,16 @@ async function feedback(rankingId, type) {
       body: JSON.stringify({ ranking_id: rankingId, feedback: type }),
     });
     if (!resp.ok) throw new Error("Feedback failed");
-    window.location.reload();
+    const selector = { like: ".like", dislike: ".dislike", superlike: ".super" }[type];
+    card?.querySelectorAll(".actions .btn").forEach((b) => b.classList.remove("active"));
+    if (selector) card?.querySelector(`.actions ${selector}`)?.classList.add("active");
+    const label = {
+      like: "Liked — boosted in your shortlist",
+      dislike: "Passed — lowered in your shortlist",
+      superlike: "Pinned to the top of your shortlist",
+    }[type];
+    showToast(label || "Saved", "ok");
   } catch (err) {
-    showStatus(err.message, "error");
+    showToast(err.message, "error");
   }
 }

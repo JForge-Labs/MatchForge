@@ -1,13 +1,14 @@
-"""Screenshot upload and toolbox endpoints."""
+"""Screenshot upload endpoints — async job pipeline with real progress."""
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_account_id, require_auth
-from app.core.db import get_db
+from app.core.db import SessionLocal, get_db
 from app.models.profile import Profile, Ranking
-from app.schemas.profile import TrustScoresOut, UploadResult
 from app.services import (
     capacity_service,
     credit_service,
@@ -17,6 +18,7 @@ from app.services import (
     ranking_service,
     referral_service,
     trust_service,
+    upload_jobs,
     vetting_service,
     vision_service,
 )
@@ -27,13 +29,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/toolbox", tags=["toolbox"])
 
 
-@router.post("/upload-screenshots", response_model=UploadResult)
+@router.post("/upload-screenshots", status_code=202)
 async def upload_screenshots(
     request: Request,
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
 ):
-    """Accept screenshots; extract, trust-analyze, rank, persist."""
+    """Validate + accept screenshots, then analyze in the background.
+
+    Returns 202 with a job id immediately; the dashboard polls
+    /toolbox/upload-jobs/{job_id} for real per-file progress.
+    """
     require_auth(request)
     account_id = get_account_id(request)
     from app.utils.legal import policies_accepted
@@ -46,18 +52,14 @@ async def upload_screenshots(
             403,
             "Complete your profile settings at /onboarding before uploading screenshots.",
         )
-
-    preference = onboarding_service.get_user_preference(db, account_id=account_id)
-    if not preference:
+    if not onboarding_service.get_user_preference(db, account_id=account_id):
         raise HTTPException(500, "No preference vector — complete onboarding")
 
-    if not files:
-        return UploadResult(
-            profiles_created=0, profiles=[], message="No files uploaded."
-        )
-
-    upload_cost = route("profile_screenshot").token_cost
     valid_files = [f for f in files if f]
+    if not valid_files:
+        raise HTTPException(
+            422, detail={"error": "no_files", "message": "No files uploaded."}
+        )
     if len(valid_files) > MAX_FILES_PER_BATCH:
         raise HTTPException(
             422,
@@ -69,221 +71,368 @@ async def upload_screenshots(
                 ),
             },
         )
-    needed = upload_cost * len(valid_files)
-    credit_service.ensure_can_afford(
-        db, account_id, needed, activity="profile_screenshot"
-    )
 
-    user_context = {
-        "gender": user.gender,
-        "intentions": user.intentions,
-        "ui_context": user.ui_context,
-    }
-    created_profiles: list[Profile] = []
-    merged_profiles: list[Profile] = []
-    trust_breakdown: list[TrustScoresOut] = []
-    all_profiles: list[Profile] = []
-    failures: list[str] = []
-
-    async with capacity_service.heavy_work_slot():
-        for idx, upload in enumerate(files):
-            filename = upload.filename or f"screenshot {idx + 1}"
-            # One bad file must not sink the batch — record and move on.
-            try:
-                image_bytes = await read_validated_image(upload)
-            except HTTPException as exc:
-                reason = (
-                    exc.detail.get("message")
-                    if isinstance(exc.detail, dict)
-                    else str(exc.detail)
-                )
-                failures.append(f"{filename}: {reason}")
-                continue
-            if not image_bytes:
-                continue
-
-            # Grok call 1 of 2: extraction + photo forensics in one vision pass
-            analysis, photo_trust = await vision_service.analyze_screenshot_full(
-                image_bytes, user_context=user_context
+    # Read + validate everything before accepting: invalid files become
+    # pre-failed job entries so the progress UI reports them honestly.
+    payloads: list[tuple[str, bytes | None, str | None]] = []
+    for idx, upload in enumerate(valid_files):
+        filename = upload.filename or f"screenshot {idx + 1}"
+        try:
+            data = await read_validated_image(upload)
+        except HTTPException as exc:
+            reason = (
+                exc.detail.get("message")
+                if isinstance(exc.detail, dict)
+                else str(exc.detail)
             )
-            if analysis.get("parse_error"):
-                failures.append(
-                    f"{filename}: vision analysis failed — "
-                    "no tokens charged for this file."
-                )
-                continue
+            payloads.append((filename, None, reason))
+            continue
+        if data:
+            payloads.append((filename, data, None))
 
-            credit_service.charge_tokens(
-                db, account_id, "profile_screenshot", metadata={"file_index": idx}
-            )
-
-            existing = profile_merge_service.find_existing_profile(
-                db, account_id, analysis
-            )
-            is_merge = existing is not None
-
-            if is_merge:
-                profile = existing
-                photo_path = vision_service.save_screenshot(
-                    image_bytes, profile.id, len(profile.photos or [])
-                )
-                profile_merge_service.merge_analysis_into_profile(
-                    profile,
-                    analysis,
-                    photo_path=photo_path,
-                    photo_index=len(profile.photos or []),
-                )
-            else:
-                profile = Profile(
-                    account_id=account_id,
-                    name=analysis.get("name"),
-                    username=analysis.get("username"),
-                    bio=analysis.get("bio"),
-                    age=analysis.get("age"),
-                    location=analysis.get("location"),
-                    platform=analysis.get("platform", "other"),
-                    extracted_data=analysis,
-                    vision_analysis=analysis,
-                    status="extracted",
-                )
-                db.add(profile)
-                db.flush()
-                photo_path = vision_service.save_screenshot(image_bytes, profile.id, idx)
-                profile.photos = [{"path": photo_path, "index": idx}]
-
-            # Forensics cache: prior photos keep their stored analyses — only
-            # this screenshot was vision-analyzed (merge path was O(N photos))
-            photo_trust["photo_path"] = photo_path
-            prior_forensics = [
-                p
-                for p in (profile.trust_analysis or {}).get("photo_analyses", [])
-                if p.get("photo_path") != photo_path
-            ]
-            photo_analyses = (prior_forensics + [photo_trust])[-10:]
-
-            # Grok call 2 of 2: bot + catfish + personalized fit in one pass
-            assessment = await trust_service.synthesize_profile_assessment(
-                profile=profile,
-                photo_analyses=photo_analyses,
-                bio=profile.bio or analysis.get("bio"),
-                profile_metadata={**(profile.extracted_data or {}), **analysis},
-                social_enrichments=[],
-                preference=preference,
-                user_gender=user.gender,
-                user_intentions=user.intentions,
-                ui_context=user.ui_context,
-                user_profile=onboarding_service.user_profile_context(user),
-            )
-            trust = trust_service.build_trust_result(
-                photo_analyses, assessment["bot"], assessment["catfish"]
-            )
-
-            vetting = await vetting_service.vet_profile(
-                name=profile.name or analysis.get("username"),
-                bio=profile.bio or analysis.get("bio"),
-                location=profile.location or analysis.get("hometown"),
-                extracted_data=profile.extracted_data or analysis,
-                trust_analysis=trust,
-                run_web_search=True,
-            )
-            trust = vetting_service.merge_vetting_into_trust(trust, vetting)
-            profile_merge_service.merge_trust_into_profile(profile, trust)
-
-            spent = dict(profile.extracted_data or {})
-            spent["tokens_spent"] = int(spent.get("tokens_spent") or 0) + upload_cost
-            profile.extracted_data = spent
-
-            base_scores = assessment["ranking"]
-            scores = trust_service.compute_trust_adjusted_scores(base_scores, trust)
-            ranking_service.apply_ranking_to_profile(profile, scores)
-
-            ranking = (
-                db.query(Ranking).filter(Ranking.profile_id == profile.id).first()
-            )
-            if ranking:
-                ranking.overall_score = scores.get("overall_score", 0)
-                ranking.compatibility_score = scores.get("compatibility_score", 0)
-                ranking.attractiveness_score = scores.get("attractiveness_score", 0)
-                ranking.red_flag_score = scores.get("red_flag_score", 0)
-                ranking.authenticity_score = trust["authenticity_score"]
-                ranking.catfish_risk_score = trust["catfish_risk_score"]
-                ranking.bot_risk_score = trust["bot_risk_score"]
-                ranking.trust_explanation = trust.get("trust_explanation")
-                ranking.explanation = scores.get("explanation")
-                ranking.percolation_priority = scores.get("percolation_priority", 0)
-                ranking_service.apply_feedback_percolation(ranking)
-            else:
-                ranking = Ranking(
-                    profile_id=profile.id,
-                    preference_vector_id=preference.id,
-                    overall_score=scores.get("overall_score", 0),
-                    compatibility_score=scores.get("compatibility_score", 0),
-                    attractiveness_score=scores.get("attractiveness_score", 0),
-                    red_flag_score=scores.get("red_flag_score", 0),
-                    authenticity_score=trust["authenticity_score"],
-                    catfish_risk_score=trust["catfish_risk_score"],
-                    bot_risk_score=trust["bot_risk_score"],
-                    trust_explanation=trust.get("trust_explanation"),
-                    explanation=scores.get("explanation"),
-                    percolation_priority=scores.get("percolation_priority", 0),
-                )
-                db.add(ranking)
-
-            if is_merge:
-                merged_profiles.append(profile)
-            else:
-                created_profiles.append(profile)
-            trust_breakdown.append(
-                TrustScoresOut(
-                    authenticity_score=trust["authenticity_score"],
-                    naturalness_score=trust["naturalness_score"],
-                    catfish_risk_score=trust["catfish_risk_score"],
-                    bot_risk_score=trust["bot_risk_score"],
-                    overall_trust_score=trust.get("overall_trust_score"),
-                    catfish_flag=trust.get("catfish_flag"),
-                    catfish_flag_label=trust.get("catfish_flag_label"),
-                    trust_explanation=trust.get("trust_explanation"),
-                    trust_badge=trust.get("trust_badge"),
-                    catfish_badge=trust.get("catfish_badge"),
-                    bot_badge=trust.get("bot_badge"),
-                    risk_factors=trust.get("risk_factors", []),
-                )
-            )
-            # Per-file durability: a failure on a later screenshot must not
-            # roll back profiles the user already paid to analyze.
-            db.commit()
-
-        if created_profiles:
-            referral_service.mark_first_upload(db, account_id)
-
-        profile_merge_service.merge_duplicate_profiles(db, account_id)
-        db.commit()
-        all_profiles = created_profiles + merged_profiles
-        for p in all_profiles:
-            db.refresh(p)
-
-    if failures and not all_profiles:
+    good = [p for p in payloads if p[1] is not None]
+    if not good:
         raise HTTPException(
             422,
-            detail={"error": "all_files_failed", "message": " ".join(failures)},
+            detail={
+                "error": "all_files_failed",
+                "message": " ".join(f"{n}: {e}" for n, _, e in payloads)
+                or "No readable files uploaded.",
+            },
         )
 
-    balance = credit_service.get_balance(db, account_id)
-    processed = len(all_profiles)
-    merge_note = ""
-    if merged_profiles:
-        merge_note = f" Enriched {len(merged_profiles)} existing profile(s)."
-    skip_note = ""
-    if failures:
-        skip_note = " Skipped: " + " ".join(failures)
-    return UploadResult(
-        profiles_created=len(created_profiles),
-        profiles_merged=len(merged_profiles),
-        profiles=all_profiles,
-        trust_breakdown=trust_breakdown,
-        message=(
-            f"Processed {processed} screenshot(s)"
-            f" ({len(created_profiles)} new, {len(merged_profiles)} merged)."
-            f"{merge_note} Token balance: {balance}.{skip_note}"
-        ),
+    upload_cost = route("profile_screenshot").token_cost
+    credit_service.ensure_can_afford(
+        db, account_id, upload_cost * len(good), activity="profile_screenshot"
     )
+    capacity_service.raise_if_overloaded()
+
+    job = upload_jobs.create_job(account_id, [p[0] for p in payloads])
+    for i, (_, data, err) in enumerate(payloads):
+        if err or data is None:
+            upload_jobs.set_file_stage(job, i, "failed", error=err or "Empty file")
+
+    asyncio.create_task(_process_upload_job(job, payloads))
+    return JSONResponse(
+        status_code=202,
+        content={
+            "job_id": job["id"],
+            "files": [p[0] for p in payloads],
+            "status_url": f"/toolbox/upload-jobs/{job['id']}",
+        },
+    )
+
+
+@router.get("/upload-jobs/{job_id}")
+def upload_job_status(request: Request, job_id: str):
+    """Poll target for the upload progress UI."""
+    require_auth(request)
+    job = upload_jobs.get_job(job_id, get_account_id(request))
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return upload_jobs.public_view(job)
+
+
+async def _acquire_heavy_slot(job: dict):
+    """Wait for a capacity slot instead of failing the accepted job outright."""
+    for attempt in range(20):  # ~5 minutes of patience
+        try:
+            ctx = capacity_service.heavy_work_slot()
+            await ctx.__aenter__()
+            return ctx
+        except HTTPException as exc:
+            capacity = (
+                isinstance(exc.detail, dict) and exc.detail.get("error") == "capacity"
+            )
+            if not capacity or attempt == 19:
+                raise
+            job["message"] = (
+                "Waiting for an analysis slot — high demand right now…"
+            )
+            await asyncio.sleep(15)
+    raise RuntimeError("unreachable")
+
+
+async def _process_upload_job(
+    job: dict, payloads: list[tuple[str, bytes | None, str | None]]
+) -> None:
+    account_id = job["account_id"]
+    db = SessionLocal()
+    job["status"] = "running"
+    created_count = 0
+    merged_count = 0
+    try:
+        user = onboarding_service.get_or_create_user(db, account_id=account_id)
+        preference = onboarding_service.get_user_preference(db, account_id=account_id)
+        if not preference:
+            job["status"] = "error"
+            job["error"] = "No preference vector — complete onboarding first."
+            return
+        user_context = {
+            "gender": user.gender,
+            "intentions": user.intentions,
+            "ui_context": user.ui_context,
+        }
+        upload_cost = route("profile_screenshot").token_cost
+
+        try:
+            slot = await _acquire_heavy_slot(job)
+        except HTTPException as exc:
+            message = (
+                exc.detail.get("message")
+                if isinstance(exc.detail, dict)
+                else str(exc.detail)
+            )
+            job["status"] = "error"
+            job["error"] = message
+            for i, entry in enumerate(job["files"]):
+                if entry["stage"] == "queued":
+                    upload_jobs.set_file_stage(
+                        job, i, "failed", error="Skipped — at capacity."
+                    )
+            return
+
+        try:
+            for idx, (filename, image_bytes, pre_error) in enumerate(payloads):
+                if pre_error or image_bytes is None:
+                    continue
+                upload_jobs.set_file_stage(job, idx, "analyzing")
+                try:
+                    # Grok call 1 of 2: extraction + photo forensics
+                    analysis, photo_trust = (
+                        await vision_service.analyze_screenshot_full(
+                            image_bytes, user_context=user_context
+                        )
+                    )
+                    if analysis.get("parse_error"):
+                        upload_jobs.set_file_stage(
+                            job,
+                            idx,
+                            "failed",
+                            error=(
+                                "Vision analysis failed — no tokens charged "
+                                "for this file."
+                            ),
+                        )
+                        continue
+
+                    credit_service.charge_tokens(
+                        db,
+                        account_id,
+                        "profile_screenshot",
+                        metadata={"file_index": idx},
+                    )
+
+                    existing = profile_merge_service.find_existing_profile(
+                        db, account_id, analysis
+                    )
+                    is_merge = existing is not None
+
+                    if is_merge:
+                        profile = existing
+                        photo_path = vision_service.save_screenshot(
+                            image_bytes, profile.id, len(profile.photos or [])
+                        )
+                        profile_merge_service.merge_analysis_into_profile(
+                            profile,
+                            analysis,
+                            photo_path=photo_path,
+                            photo_index=len(profile.photos or []),
+                        )
+                    else:
+                        profile = Profile(
+                            account_id=account_id,
+                            name=analysis.get("name"),
+                            username=analysis.get("username"),
+                            bio=analysis.get("bio"),
+                            age=analysis.get("age"),
+                            location=analysis.get("location"),
+                            platform=analysis.get("platform", "other"),
+                            extracted_data=analysis,
+                            vision_analysis=analysis,
+                            status="extracted",
+                        )
+                        db.add(profile)
+                        db.flush()
+                        photo_path = vision_service.save_screenshot(
+                            image_bytes, profile.id, idx
+                        )
+                        profile.photos = [{"path": photo_path, "index": idx}]
+
+                    # Forensics cache: only this screenshot was vision-analyzed
+                    photo_trust["photo_path"] = photo_path
+                    prior_forensics = [
+                        p
+                        for p in (profile.trust_analysis or {}).get(
+                            "photo_analyses", []
+                        )
+                        if p.get("photo_path") != photo_path
+                    ]
+                    photo_analyses = (prior_forensics + [photo_trust])[-10:]
+
+                    upload_jobs.set_file_stage(job, idx, "scoring")
+
+                    # Grok call 2 of 2: bot + catfish + personalized fit
+                    assessment = await trust_service.synthesize_profile_assessment(
+                        profile=profile,
+                        photo_analyses=photo_analyses,
+                        bio=profile.bio or analysis.get("bio"),
+                        profile_metadata={
+                            **(profile.extracted_data or {}),
+                            **analysis,
+                        },
+                        social_enrichments=[],
+                        preference=preference,
+                        user_gender=user.gender,
+                        user_intentions=user.intentions,
+                        ui_context=user.ui_context,
+                        user_profile=onboarding_service.user_profile_context(user),
+                    )
+                    trust = trust_service.build_trust_result(
+                        photo_analyses, assessment["bot"], assessment["catfish"]
+                    )
+
+                    vetting = await vetting_service.vet_profile(
+                        name=profile.name or analysis.get("username"),
+                        bio=profile.bio or analysis.get("bio"),
+                        location=profile.location or analysis.get("hometown"),
+                        extracted_data=profile.extracted_data or analysis,
+                        trust_analysis=trust,
+                        run_web_search=True,
+                    )
+                    trust = vetting_service.merge_vetting_into_trust(trust, vetting)
+                    profile_merge_service.merge_trust_into_profile(profile, trust)
+
+                    spent = dict(profile.extracted_data or {})
+                    spent["tokens_spent"] = (
+                        int(spent.get("tokens_spent") or 0) + upload_cost
+                    )
+                    profile.extracted_data = spent
+
+                    base_scores = assessment["ranking"]
+                    scores = trust_service.compute_trust_adjusted_scores(
+                        base_scores, trust
+                    )
+                    ranking_service.apply_ranking_to_profile(profile, scores)
+
+                    ranking = (
+                        db.query(Ranking)
+                        .filter(Ranking.profile_id == profile.id)
+                        .first()
+                    )
+                    if ranking:
+                        ranking.overall_score = scores.get("overall_score", 0)
+                        ranking.compatibility_score = scores.get(
+                            "compatibility_score", 0
+                        )
+                        ranking.attractiveness_score = scores.get(
+                            "attractiveness_score", 0
+                        )
+                        ranking.red_flag_score = scores.get("red_flag_score", 0)
+                        ranking.authenticity_score = trust["authenticity_score"]
+                        ranking.catfish_risk_score = trust["catfish_risk_score"]
+                        ranking.bot_risk_score = trust["bot_risk_score"]
+                        ranking.trust_explanation = trust.get("trust_explanation")
+                        ranking.explanation = scores.get("explanation")
+                        ranking.percolation_priority = scores.get(
+                            "percolation_priority", 0
+                        )
+                        ranking_service.apply_feedback_percolation(ranking)
+                    else:
+                        ranking = Ranking(
+                            profile_id=profile.id,
+                            preference_vector_id=preference.id,
+                            overall_score=scores.get("overall_score", 0),
+                            compatibility_score=scores.get("compatibility_score", 0),
+                            attractiveness_score=scores.get(
+                                "attractiveness_score", 0
+                            ),
+                            red_flag_score=scores.get("red_flag_score", 0),
+                            authenticity_score=trust["authenticity_score"],
+                            catfish_risk_score=trust["catfish_risk_score"],
+                            bot_risk_score=trust["bot_risk_score"],
+                            trust_explanation=trust.get("trust_explanation"),
+                            explanation=scores.get("explanation"),
+                            percolation_priority=scores.get(
+                                "percolation_priority", 0
+                            ),
+                        )
+                        db.add(ranking)
+
+                    # Per-file durability: later failures can't roll back
+                    # profiles the user already paid to analyze.
+                    db.commit()
+                    profile_id = profile.id
+                    if is_merge:
+                        merged_count += 1
+                    else:
+                        created_count += 1
+                    upload_jobs.set_file_stage(
+                        job, idx, "done", profile_id=profile_id, merged=is_merge
+                    )
+                except HTTPException as exc:
+                    db.rollback()
+                    detail = exc.detail
+                    reason = (
+                        detail.get("message")
+                        if isinstance(detail, dict)
+                        else str(detail)
+                    )
+                    upload_jobs.set_file_stage(job, idx, "failed", error=reason)
+                    if (
+                        isinstance(detail, dict)
+                        and detail.get("error") == "insufficient_tokens"
+                    ):
+                        for j in range(idx + 1, len(payloads)):
+                            if job["files"][j]["stage"] == "queued":
+                                upload_jobs.set_file_stage(
+                                    job,
+                                    j,
+                                    "failed",
+                                    error="Skipped — insufficient tokens.",
+                                )
+                        break
+                except Exception:
+                    logger.exception("Upload processing failed for %s", filename)
+                    db.rollback()
+                    upload_jobs.set_file_stage(
+                        job,
+                        idx,
+                        "failed",
+                        error=(
+                            "Analysis failed — no tokens were charged for "
+                            "this file."
+                        ),
+                    )
+
+            if created_count:
+                referral_service.mark_first_upload(db, account_id)
+            profile_merge_service.merge_duplicate_profiles(db, account_id)
+            db.commit()
+        finally:
+            await slot.__aexit__(None, None, None)
+
+        balance = credit_service.get_balance(db, account_id)
+        processed = created_count + merged_count
+        failed = [f for f in job["files"] if f["stage"] == "failed"]
+        message = (
+            f"Processed {processed} screenshot(s)"
+            f" ({created_count} new, {merged_count} merged)."
+            f" Token balance: {balance}."
+        )
+        if failed:
+            message += " Skipped: " + " ".join(
+                f"{f['name']}: {f['error']}" for f in failed
+            )
+        job["balance"] = balance
+        job["message"] = message
+        job["status"] = "done"
+    except Exception:
+        logger.exception("Upload job %s failed", job["id"])
+        job["status"] = "error"
+        job["error"] = (
+            "Analysis failed unexpectedly — any completed profiles are "
+            "already on your dashboard."
+        )
+    finally:
+        db.close()

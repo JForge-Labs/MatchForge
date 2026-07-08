@@ -1,5 +1,5 @@
 """Dashboard and percolated shortlist endpoints."""
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 
@@ -74,6 +74,46 @@ def percolated_shortlist(request: Request, db: Session = Depends(get_db)):
     """Return ranked shortlist sorted by percolation priority."""
     require_auth(request)
     return _percolated_data(db, account_id=get_account_id(request))
+
+
+@router.get("/dashboard/cards/{profile_id}", response_class=HTMLResponse)
+def profile_card_fragment(
+    request: Request, profile_id: int, db: Session = Depends(get_db)
+):
+    """Server-rendered card fragment for in-place refresh (no full reload)."""
+    require_auth(request)
+    account_id = get_account_id(request)
+    ranking = (
+        db.query(Ranking)
+        .join(Profile, Ranking.profile_id == Profile.id)
+        .options(
+            joinedload(Ranking.profile).joinedload(Profile.social_enrichments),
+            joinedload(Ranking.profile).joinedload(Profile.evidence),
+        )
+        .filter(Profile.id == profile_id, Profile.account_id == account_id)
+        .first()
+    )
+    if not ranking:
+        raise HTTPException(404, "Profile not found")
+    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+    item = {
+        "ranking": ranking,
+        "trust": trust_card_context(ranking.profile, ranking, preference=pref),
+        "tokens_spent": profile_tokens_spent(ranking.profile, db),
+    }
+    return render(
+        request,
+        "partials/profile_card.html",
+        {
+            "item": item,
+            "x_verify_cost": route("x_verify").token_cost,
+            "agent_est_min": (
+                route("profile_agent").token_cost + route("rank_refresh").token_cost
+            ),
+            "agent_image_cost": route("profile_agent_image").token_cost,
+        },
+        db=db,
+    )
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

@@ -131,6 +131,57 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; }
   font-weight: 600;
 }
 
+#toast-container {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(22rem, calc(100vw - 2.5rem));
+}
+
+.toast {
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 0.88rem;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast.visible { opacity: 1; transform: translateY(0); }
+.toast-ok { border-color: var(--green); }
+.toast-error { border-color: var(--red); }
+
+.card-new {
+  animation: card-arrive 2.2s ease;
+}
+
+@keyframes card-arrive {
+  0% { box-shadow: 0 0 0 2px var(--accent); background: rgba(124, 108, 240, 0.08); }
+  100% { box-shadow: none; }
+}
+
+.actions .btn.active {
+  background: rgba(124, 108, 240, 0.12);
+  font-weight: 700;
+}
+
+/* Real (poll-driven) progress replaces the keyframe animation */
+.upload-progress-track.real .upload-progress-bar {
+  animation: none;
+  transition: width 0.6s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .card-new { animation: none; transition: none; }
+}
+
 .badge-na {
   border: 1px dashed var(--border);
   color: var(--muted);
