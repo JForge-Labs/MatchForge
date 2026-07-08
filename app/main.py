@@ -106,8 +106,8 @@ class HeadToGetMiddleware:
 _CSP = (
     "default-src 'self'; "
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
-    "font-src 'self' https://fonts.gstatic.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "font-src 'self'; "
     "img-src 'self' data: https:; "
     "connect-src 'self'; "
     "frame-ancestors 'none'; "
