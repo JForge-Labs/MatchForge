@@ -161,7 +161,20 @@ def merge_trust_into_profile(profile: Profile, trust: dict) -> None:
     new_photos = list(trust.get("photo_analyses") or [])
     merged_photos = prior_photos + new_photos
 
-    profile.trust_analysis = {**prior, **trust, "photo_analyses": merged_photos[-10:]}
+    # Forensics are cached per photo_path (newest wins) so re-analysis of a
+    # merged profile never duplicates entries or re-runs vision on old photos.
+    deduped: list[dict] = []
+    seen_paths: set[str] = set()
+    for photo in reversed(merged_photos):
+        path = photo.get("photo_path") if isinstance(photo, dict) else None
+        if path:
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+        deduped.append(photo)
+    deduped.reverse()
+
+    profile.trust_analysis = {**prior, **trust, "photo_analyses": deduped[-10:]}
     profile.authenticity_score = trust.get("authenticity_score")
     profile.naturalness_score = trust.get("naturalness_score")
     profile.catfish_risk_score = trust.get("catfish_risk_score")

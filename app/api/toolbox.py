@@ -102,7 +102,8 @@ async def upload_screenshots(
             if not image_bytes:
                 continue
 
-            analysis = await vision_service.analyze_screenshot(
+            # Grok call 1 of 2: extraction + photo forensics in one vision pass
+            analysis, photo_trust = await vision_service.analyze_screenshot_full(
                 image_bytes, user_context=user_context
             )
             if analysis.get("parse_error"):
@@ -132,20 +133,7 @@ async def upload_screenshots(
                     photo_path=photo_path,
                     photo_index=len(profile.photos or []),
                 )
-                all_images = profile_merge_service.load_profile_photo_bytes(profile)
-                if not all_images:
-                    all_images = [image_bytes]
-                trust = await trust_service.analyze_profile_trust(
-                    image_bytes_list=all_images,
-                    bio=profile.bio or analysis.get("bio"),
-                    profile_metadata={**(profile.extracted_data or {}), **analysis},
-                )
             else:
-                trust = await trust_service.analyze_profile_trust(
-                    image_bytes_list=[image_bytes],
-                    bio=analysis.get("bio"),
-                    profile_metadata=analysis,
-                )
                 profile = Profile(
                     account_id=account_id,
                     name=analysis.get("name"),
@@ -163,6 +151,33 @@ async def upload_screenshots(
                 photo_path = vision_service.save_screenshot(image_bytes, profile.id, idx)
                 profile.photos = [{"path": photo_path, "index": idx}]
 
+            # Forensics cache: prior photos keep their stored analyses — only
+            # this screenshot was vision-analyzed (merge path was O(N photos))
+            photo_trust["photo_path"] = photo_path
+            prior_forensics = [
+                p
+                for p in (profile.trust_analysis or {}).get("photo_analyses", [])
+                if p.get("photo_path") != photo_path
+            ]
+            photo_analyses = (prior_forensics + [photo_trust])[-10:]
+
+            # Grok call 2 of 2: bot + catfish + personalized fit in one pass
+            assessment = await trust_service.synthesize_profile_assessment(
+                profile=profile,
+                photo_analyses=photo_analyses,
+                bio=profile.bio or analysis.get("bio"),
+                profile_metadata={**(profile.extracted_data or {}), **analysis},
+                social_enrichments=[],
+                preference=preference,
+                user_gender=user.gender,
+                user_intentions=user.intentions,
+                ui_context=user.ui_context,
+                user_profile=onboarding_service.user_profile_context(user),
+            )
+            trust = trust_service.build_trust_result(
+                photo_analyses, assessment["bot"], assessment["catfish"]
+            )
+
             vetting = await vetting_service.vet_profile(
                 name=profile.name or analysis.get("username"),
                 bio=profile.bio or analysis.get("bio"),
@@ -178,14 +193,7 @@ async def upload_screenshots(
             spent["tokens_spent"] = int(spent.get("tokens_spent") or 0) + upload_cost
             profile.extracted_data = spent
 
-            base_scores = await ranking_service.rank_profile(
-                profile,
-                preference,
-                user_gender=user.gender,
-                user_intentions=user.intentions,
-                ui_context=user.ui_context,
-                user_profile=onboarding_service.user_profile_context(user),
-            )
+            base_scores = assessment["ranking"]
             scores = trust_service.compute_trust_adjusted_scores(base_scores, trust)
             ranking_service.apply_ranking_to_profile(profile, scores)
 

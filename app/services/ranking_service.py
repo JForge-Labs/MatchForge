@@ -1,7 +1,6 @@
 """AI ranking engine with customizable preference vectors."""
 import json
 import logging
-import re
 
 from app.core.config import get_settings
 from app.models.profile import PreferenceVector, Profile, Ranking
@@ -88,20 +87,6 @@ def apply_feedback_percolation(ranking: Ranking) -> None:
         ranking.percolation_priority = (ranking.overall_score or 0) + 20
     elif ranking.feedback == "dislike":
         ranking.percolation_priority = (ranking.overall_score or 0) - 50
-
-
-def _parse_json_response(text: str) -> dict:
-    text = text.strip()
-    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
-    if fence:
-        text = fence.group(1).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        brace = re.search(r"\{[\s\S]*\}", text)
-        if brace:
-            return json.loads(brace.group())
-        raise
 
 
 def _fallback_scores(profile: Profile, pref: PreferenceVector) -> dict:

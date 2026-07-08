@@ -154,20 +154,6 @@ def format_identity_block(user: UserProfile | None) -> str:
     )
 
 
-def _parse_json_response(text: str) -> dict:
-    text = text.strip()
-    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
-    if fence:
-        text = fence.group(1).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        brace = re.search(r"\{[\s\S]*\}", text)
-        if brace:
-            return json.loads(brace.group())
-        raise
-
-
 def get_or_create_user(db: Session, account_id: int | None = None) -> UserProfile:
     if account_id:
         user = (
