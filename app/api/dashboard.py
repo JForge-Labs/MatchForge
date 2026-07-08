@@ -1,6 +1,7 @@
 """Dashboard and percolated shortlist endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import (
@@ -28,8 +29,14 @@ from app.services.model_router import route
 router = APIRouter(tags=["dashboard"])
 
 
+VALID_VIEWS = ("shortlist", "all", "passed")
+
+
 def _shortlist_rankings(
-    db: Session, account_id: int | None = None
+    db: Session,
+    account_id: int | None = None,
+    view: str = "shortlist",
+    q: str | None = None,
 ) -> tuple[list[Ranking], int]:
     profile_filter = []
     if account_id is not None:
@@ -37,7 +44,7 @@ def _shortlist_rankings(
 
     # Dedup sweep runs at upload time (toolbox job) — never as a GET side
     # effect: destructive merges on page load were both slow and unsafe.
-    rankings = (
+    query = (
         db.query(Ranking)
         .join(Profile, Ranking.profile_id == Profile.id)
         .options(
@@ -45,13 +52,40 @@ def _shortlist_rankings(
             joinedload(Ranking.profile).joinedload(Profile.evidence),
         )
         .filter(*profile_filter)
-        .order_by(Ranking.percolation_priority.desc())
-        .limit(100)
-        .all()
     )
-    rankings = profile_merge_service.dedupe_shortlist_rankings(rankings)[:50]
+    if q:
+        like = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                Profile.name.ilike(like),
+                Profile.display_name.ilike(like),
+                Profile.username.ilike(like),
+                Profile.location.ilike(like),
+                Profile.platform.ilike(like),
+            )
+        )
+    if view == "passed":
+        query = query.filter(Ranking.feedback == "dislike")
+    elif view == "shortlist":
+        query = query.filter(
+            or_(Ranking.feedback.is_(None), Ranking.feedback != "dislike")
+        )
+    # view == "all": no feedback filter
+
+    cap = 50 if view == "shortlist" else 100
+    rankings = (
+        query.order_by(Ranking.percolation_priority.desc()).limit(cap * 2).all()
+    )
+    rankings = profile_merge_service.dedupe_shortlist_rankings(rankings)[:cap]
     total = db.query(Profile).filter(*profile_filter).count()
     return rankings, total
+
+
+def _passed_count(db: Session, account_id: int | None) -> int:
+    query = db.query(Ranking).join(Profile, Ranking.profile_id == Profile.id)
+    if account_id is not None:
+        query = query.filter(Profile.account_id == account_id)
+    return query.filter(Ranking.feedback == "dislike").count()
 
 
 def _percolated_data(db: Session, account_id: int | None = None) -> PercolatedDashboard:
@@ -118,8 +152,62 @@ def profile_card_fragment(
     )
 
 
+@router.get("/dashboard/compare", response_class=HTMLResponse)
+def compare_profiles(
+    request: Request, ids: str = "", db: Session = Depends(get_db)
+):
+    """Side-by-side comparison of 2-3 selected profiles."""
+    if redirect := redirect_if_unauthenticated(request):
+        return redirect
+    account_id = get_account_id(request)
+    id_list: list[int] = []
+    for raw in ids.split(","):
+        raw = raw.strip()
+        if raw.isdigit() and int(raw) not in id_list:
+            id_list.append(int(raw))
+    id_list = id_list[:3]
+    if len(id_list) < 2:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    rankings = (
+        db.query(Ranking)
+        .join(Profile, Ranking.profile_id == Profile.id)
+        .options(
+            joinedload(Ranking.profile).joinedload(Profile.social_enrichments),
+            joinedload(Ranking.profile).joinedload(Profile.evidence),
+        )
+        .filter(Profile.id.in_(id_list), Profile.account_id == account_id)
+        .all()
+    )
+    by_profile = {r.profile_id: r for r in rankings}
+    ordered = [by_profile[i] for i in id_list if i in by_profile]
+    if len(ordered) < 2:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    pref = onboarding_service.get_user_preference(db, account_id=account_id)
+    items = [
+        {
+            "ranking": r,
+            "trust": trust_card_context(r.profile, r, preference=pref),
+            "tokens_spent": profile_tokens_spent(r.profile, db),
+        }
+        for r in ordered
+    ]
+    return render(
+        request,
+        "compare.html",
+        {"items": items, "authed": True, "active": "dashboard"},
+        db=db,
+    )
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
-def dashboard_ui(request: Request, db: Session = Depends(get_db)):
+def dashboard_ui(
+    request: Request,
+    view: str = "shortlist",
+    q: str = "",
+    db: Session = Depends(get_db),
+):
     """HTML dashboard — redirects to onboarding if not complete."""
     if redirect := redirect_if_unauthenticated(request):
         return redirect
@@ -131,8 +219,13 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
     if not user.onboarding_complete:
         return RedirectResponse(url="/onboarding", status_code=302)
 
+    if view not in VALID_VIEWS:
+        view = "shortlist"
+    q = q.strip()[:80]
     pref = onboarding_service.get_user_preference(db, account_id=account_id)
-    rankings, total = _shortlist_rankings(db, account_id=account_id)
+    rankings, total = _shortlist_rankings(
+        db, account_id=account_id, view=view, q=q or None
+    )
     referrals = referral_service.get_referral_stats(db, account_id)
     agent_est = (
         route("profile_agent").token_cost
@@ -176,6 +269,9 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "note_rerank_cost": (
                 route("user_note").token_cost + route("rank_refresh").token_cost
             ),
+            "view": view,
+            "q": q,
+            "passed_count": _passed_count(db, account_id),
             "authed": is_authenticated(request),
             "active": "dashboard",
         },

@@ -293,6 +293,41 @@ if (uploadForm && fileInput) {
   });
 }
 
+function updateCompareBar(changed) {
+  const checked = [...document.querySelectorAll(".compare-checkbox:checked")];
+  if (checked.length > 3 && changed) {
+    changed.checked = false;
+    showToast("Compare up to 3 profiles at a time", "error");
+    return updateCompareBar();
+  }
+  let bar = document.getElementById("compare-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "compare-bar";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn primary";
+    btn.id = "compare-go";
+    btn.addEventListener("click", () => {
+      const ids = [...document.querySelectorAll(".compare-checkbox:checked")].map(
+        (c) => c.dataset.profileId
+      );
+      if (ids.length >= 2) {
+        window.location.href = `/dashboard/compare?ids=${ids.join(",")}`;
+      }
+    });
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+  const btn = document.getElementById("compare-go");
+  if (checked.length >= 2) {
+    btn.textContent = `Compare ${checked.length} profiles →`;
+    bar.classList.add("visible");
+  } else {
+    bar.classList.remove("visible");
+  }
+}
+
 async function startRename(profileId) {
   const h3 = document.getElementById(`card-title-${profileId}`);
   if (!h3 || h3.dataset.editing) return;

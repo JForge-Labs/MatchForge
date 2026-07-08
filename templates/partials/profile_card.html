@@ -345,5 +345,10 @@
     <button class="btn small like" onclick="feedback({{ ranking.id }}, 'like')">Like</button>
     <button class="btn small dislike" onclick="feedback({{ ranking.id }}, 'dislike')">Pass</button>
     <button class="btn small super" onclick="feedback({{ ranking.id }}, 'superlike')">Top</button>
+    <label class="compare-select" title="Select 2-3 profiles to compare side by side">
+      <input type="checkbox" class="compare-checkbox" data-profile-id="{{ ranking.profile.id }}"
+             onchange="updateCompareBar(this)">
+      Compare
+    </label>
   </div>
 </article>

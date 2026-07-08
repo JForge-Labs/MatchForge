@@ -99,10 +99,10 @@
 <section class="shortlist">
   <div class="shortlist-header">
     <div>
-      <h2>Shortlist</h2>
+      <h2>{% if view == 'passed' %}Passed profiles{% elif view == 'all' %}All profiles{% else %}Shortlist{% endif %}</h2>
       <p class="section-lead">Personal safety due diligence — ranked by match likelihood from <em>your</em> public profile screenshots. Trust vetting flags catfish risk; delete workups when done. <em>AI scores are probabilistic — verify yourself before meeting anyone.</em> <a href="/how-scoring-works" class="lead-link">How scoring works</a></p>
     </div>
-    {% if cards %}
+    {% if cards and view == 'shortlist' %}
     {% set vet_n = cards|length if cards|length < 5 else 5 %}
     <button type="button" class="btn" id="vet-top-btn" onclick="vetTopCandidates()"
             title="Deep social + web vetting for your top {{ vet_n }} candidates">
@@ -111,12 +111,28 @@
     {% endif %}
   </div>
 
+  <div class="shortlist-toolbar">
+    <nav class="shortlist-tabs" aria-label="Profile views">
+      <a href="/dashboard{% if q %}?q={{ q|urlencode }}{% endif %}" class="tab {% if view == 'shortlist' %}active{% endif %}">Shortlist</a>
+      <a href="/dashboard?view=all{% if q %}&q={{ q|urlencode }}{% endif %}" class="tab {% if view == 'all' %}active{% endif %}">All · {{ total }}</a>
+      <a href="/dashboard?view=passed{% if q %}&q={{ q|urlencode }}{% endif %}" class="tab {% if view == 'passed' %}active{% endif %}">Passed{% if passed_count %} · {{ passed_count }}{% endif %}</a>
+    </nav>
+    <form class="shortlist-search" method="get" action="/dashboard" role="search">
+      {% if view != 'shortlist' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+      <input type="search" name="q" value="{{ q }}" placeholder="Search name, platform, city…" aria-label="Search profiles">
+    </form>
+  </div>
+
   {% if cards %}
   <div class="cards">
     {% for item in cards %}
     {% include "partials/profile_card.html" %}
     {% endfor %}
   </div>
+  {% elif q %}
+  <p class="empty">No profiles match “{{ q }}” — try a shorter search or another tab.</p>
+  {% elif view == 'passed' %}
+  <p class="empty">Nothing here — profiles you pass on will move to this tab.</p>
   {% else %}
   <p class="empty">No profiles yet — upload a screenshot to get started.</p>
   {% endif %}

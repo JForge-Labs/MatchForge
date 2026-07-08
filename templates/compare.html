@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Compare candidates — MatchForge{% endblock %}
+
+{% block content %}
+<section class="compare-page">
+  <div class="compare-header">
+    <div>
+      <h1>Compare candidates</h1>
+      <p class="section-lead">Side by side, same scale — trust first, then fit. <em>AI scores are probabilistic — verify yourself before meeting anyone.</em></p>
+    </div>
+    <a href="/dashboard" class="btn">← Back to dashboard</a>
+  </div>
+
+  <div class="compare-grid compare-{{ items|length }}">
+    {% for item in items %}
+    {% set ranking = item.ranking %}
+    {% set t = item.trust %}
+    <article class="card compare-card card-{{ t.catfish_flag }}">
+      <div class="card-header">
+        <div class="card-title-block">
+          <h3>{{ ranking.profile.display_name or ranking.profile.name or ranking.profile.username or ("Profile #" ~ ranking.profile.id) }}</h3>
+          {% if ranking.profile.username %}
+          <span class="profile-handle">@{{ ranking.profile.username }}</span>
+          {% endif %}
+          <span class="vet-badge vet-{{ t.catfish_flag }}">{{ t.catfish_label }}</span>
+        </div>
+        <div class="card-scores">
+          {% if t.overall_trust is not none %}
+          <span class="trust-score">{{ "%.0f"|format(t.overall_trust) }}</span>
+          {% else %}
+          <span class="trust-score trust-score-na" title="Trust could not be analyzed">—</span>
+          {% endif %}
+          <span class="score-label">trust</span>
+          <span class="match-score">{{ "%.0f"|format(ranking.overall_score) }}</span>
+          <span class="score-label">match</span>
+        </div>
+      </div>
+
+      <div class="card-meta">
+        {% if ranking.profile.age %}<span>{{ ranking.profile.age }}</span>{% endif %}
+        {% if ranking.profile.location %}<span>{{ ranking.profile.location }}</span>{% endif %}
+        {% if ranking.profile.platform %}<span class="platform">{{ ranking.profile.platform }}</span>{% endif %}
+      </div>
+
+      <div class="card-top-scores">
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Compatibility</span>
+            <span class="score-bar-value">{{ "%.0f"|format(ranking.compatibility_score) }}</span>
+          </div>
+          <div class="score-bar-track" role="presentation">
+            <div class="score-bar-fill score-bar-compat" style="width: {{ ranking.compatibility_score|int }}%"></div>
+          </div>
+        </div>
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Attractiveness</span>
+            <span class="score-bar-value">{{ "%.0f"|format(ranking.attractiveness_score) }}</span>
+          </div>
+          <div class="score-bar-track" role="presentation">
+            <div class="score-bar-fill score-bar-attract" style="width: {{ ranking.attractiveness_score|int }}%"></div>
+          </div>
+        </div>
+        <div class="score-bar-item">
+          <div class="score-bar-header">
+            <span class="score-bar-label">Red flags</span>
+            <span class="score-bar-value score-bar-value-warn">{{ "%.0f"|format(ranking.red_flag_score) }}</span>
+          </div>
+          <div class="score-bar-track" role="presentation">
+            <div class="score-bar-fill score-bar-red" style="width: {{ ranking.red_flag_score|int }}%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trust-badges">
+        {% if t.catfish_risk is not none %}
+        <span class="badge {% if t.catfish_risk < 30 %}badge-green{% elif t.catfish_risk < 60 %}badge-yellow{% else %}badge-red{% endif %}">
+          Catfish risk {{ "%.0f"|format(t.catfish_risk) }}%
+        </span>
+        {% else %}
+        <span class="badge badge-na">Catfish risk — not analyzed</span>
+        {% endif %}
+        {% if t.auth is not none %}
+        <span class="badge {% if t.auth >= 70 %}badge-green{% elif t.auth >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+          Authenticity {{ "%.0f"|format(t.auth) }}%
+        </span>
+        {% else %}
+        <span class="badge badge-na">Authenticity — not analyzed</span>
+        {% endif %}
+        {% if t.x_proof is not none %}
+        <span class="badge badge-x {% if t.x_proof >= 70 %}badge-green{% elif t.x_proof >= 40 %}badge-yellow{% else %}badge-red{% endif %}">
+          𝕏 Social proof {{ "%.0f"|format(t.x_proof) }}
+        </span>
+        {% endif %}
+      </div>
+
+      {% if t.confidence %}
+      <span class="confidence-chip confidence-{{ t.confidence.tier }}" title="{{ t.confidence.basis }}">{{ t.confidence.tier|capitalize }} confidence</span>
+      {% endif %}
+
+      {% if t.risk_factors %}
+      <ul class="risk-factors">
+        {% for factor in t.risk_factors[:4] %}
+        <li>{{ factor }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if ranking.profile.bio %}
+      <p class="bio">{{ ranking.profile.bio[:180] }}{% if ranking.profile.bio|length > 180 %}…{% endif %}</p>
+      {% endif %}
+
+      {% if ranking.explanation %}
+      <p class="explanation">{{ ranking.explanation }}</p>
+      {% endif %}
+
+      <p class="token-spent">{{ item.tokens_spent }} tokens spent</p>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
