@@ -3,6 +3,7 @@ import logging
 
 import stripe
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -81,19 +82,26 @@ def credit_purchase(
 ) -> int | None:
     if tokens <= 0 or purchase_already_credited(db, stripe_ref):
         return None
-    balance = credit_service.grant_tokens(
-        db,
-        account_id,
-        tokens,
-        "stripe_purchase",
-        note=f"Stripe {kind}: ${topup_usd}",
-        metadata={
-            "stripe_ref": stripe_ref,
-            "topup_usd": topup_usd,
-            "kind": kind,
-        },
-    )
-    db.commit()
+    try:
+        balance = credit_service.grant_tokens(
+            db,
+            account_id,
+            tokens,
+            "stripe_purchase",
+            note=f"Stripe {kind}: ${topup_usd}",
+            metadata={
+                "stripe_ref": stripe_ref,
+                "topup_usd": topup_usd,
+                "kind": kind,
+            },
+        )
+        db.commit()
+    except IntegrityError:
+        # Webhook and success-page reconcile raced — the partial unique index
+        # on stripe_ref guarantees exactly one of them credits.
+        db.rollback()
+        logger.info("Stripe ref %s already credited (concurrent path)", stripe_ref)
+        return None
     logger.info(
         "Credited %s tokens to account %s via Stripe %s (%s)",
         tokens,

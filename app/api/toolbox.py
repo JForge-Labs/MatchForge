@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core import ratelimit
 from app.core.auth import get_account_id, require_auth
 from app.core.db import SessionLocal, get_db
 from app.models.profile import Profile, Ranking
@@ -42,6 +43,13 @@ async def upload_screenshots(
     """
     require_auth(request)
     account_id = get_account_id(request)
+    ratelimit.enforce(
+        request,
+        scope="upload",
+        limit=30,
+        window_seconds=3600,
+        identity=str(account_id),
+    )
     from app.utils.legal import policies_accepted
 
     user = onboarding_service.get_or_create_user(db, account_id=account_id)

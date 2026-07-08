@@ -32,7 +32,8 @@ def _owned_profile(db: Session, profile_id: int, account_id: int) -> Profile:
     profile = db.query(Profile).filter(Profile.id == profile_id).first()
     if not profile:
         raise HTTPException(404, "Profile not found")
-    if profile.account_id and profile.account_id != account_id:
+    # Strict ownership — a NULL account_id must not grant everyone access.
+    if profile.account_id != account_id:
         raise HTTPException(403, "Not your profile")
     return profile
 

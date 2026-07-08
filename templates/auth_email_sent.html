@@ -13,8 +13,17 @@
   </p>
 
   <div class="status success">
-    Open the link in your inbox to continue. Links expire after a short time.
+    Open the link in your inbox to continue.
+    {% if purpose == 'signup' %}The confirmation link expires in 24 hours.{% else %}The sign-in link expires in 15 minutes.{% endif %}
   </div>
+
+  {% if email %}
+  <form method="post" action="{% if purpose == 'signup' %}/signup{% else %}/login{% endif %}" class="resend-form">
+    <input type="hidden" name="email" value="{{ email }}">
+    <button type="submit" class="btn">Resend the link</button>
+    <span class="resend-hint">Nothing after a minute? Check spam, then resend.</span>
+  </form>
+  {% endif %}
 
   {% if not smtp_configured and dev_link and app_env == 'development' %}
   <div class="dev-link-box">

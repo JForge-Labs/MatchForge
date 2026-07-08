@@ -3,6 +3,9 @@
 Run (with venv active):
     uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 """
+import logging
+import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -34,6 +37,12 @@ from app.api import (
 from app.core.config import get_settings
 
 settings = get_settings()
+
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+_access_logger = logging.getLogger("matchforge.request")
 
 
 @asynccontextmanager
@@ -117,6 +126,27 @@ _CSP = (
 
 
 @app.middleware("http")
+async def request_id_and_timing(request, call_next):
+    """Tag every request so 'my upload failed' is reconstructable from logs."""
+    request_id = secrets.token_hex(6)
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    response.headers.setdefault("X-Request-ID", request_id)
+    if not request.url.path.startswith("/static"):
+        _access_logger.info(
+            "%s %s -> %s %.0fms rid=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+            request_id,
+        )
+    return response
+
+
+@app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)
     headers = response.headers
@@ -132,7 +162,9 @@ async def security_headers(request, call_next):
 
 
 app.add_middleware(HeadToGetMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(
+    SessionMiddleware, secret_key=settings.secret_key, https_only=_is_prod
+)
 app.add_exception_handler(StarletteHTTPException, capacity_aware_http_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 

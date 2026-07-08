@@ -11,6 +11,7 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core import ratelimit
 from app.services import account_service, capacity_service, email_service
 from app.services import affiliate_service, onboarding_service
 from app.utils.legal import post_auth_path
@@ -113,6 +114,8 @@ def signup_submit(
     db: Session = Depends(get_db),
 ):
     capacity_service.raise_if_overloaded(signup=True)
+    # Every verified signup grants real xAI-backed tokens — cap farming.
+    ratelimit.enforce(request, scope="signup", limit=10, window_seconds=3600)
     ref = affiliate_ref.strip() or request.cookies.get(
         affiliate_service.AFFILIATE_COOKIE, ""
     )
@@ -176,6 +179,7 @@ def login_submit(
     next: str = Form("/dashboard"),
     db: Session = Depends(get_db),
 ):
+    ratelimit.enforce(request, scope="login", limit=15, window_seconds=3600)
     status, dev_token = account_service.request_login_link(db, email)
     if status == "invalid":
         return render(
@@ -189,15 +193,19 @@ def login_submit(
             status_code=400,
         )
     if status == "not_found":
+        # Uniform response — a login form must not confirm which emails
+        # have accounts (user enumeration).
         return render(
             request,
-            "login.html",
+            "auth_email_sent.html",
             _auth_context(
-                next=next,
-                error="No account found. Create one first.",
-                email=email,
+                email=account_service.normalize_email(email),
+                purpose="login",
+                message=(
+                    "If that email has a MatchForge account, "
+                    "we've sent it a sign-in link."
+                ),
             ),
-            status_code=404,
         )
     if status == "unverified":
         dev_link = (

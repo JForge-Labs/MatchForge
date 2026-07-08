@@ -4,6 +4,7 @@ import secrets
 
 from fastapi import HTTPException
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -19,18 +20,29 @@ def billing_enabled() -> bool:
     return settings.billing_enabled
 
 
-def _ensure_credit_row(db: Session, account_id: int) -> AccountCredit:
-    row = (
-        db.query(AccountCredit)
-        .filter(AccountCredit.account_id == account_id)
-        .first()
-    )
+def _ensure_credit_row(
+    db: Session, account_id: int, *, for_update: bool = False
+) -> AccountCredit:
+    """Fetch (optionally row-locked) the balance row, creating it race-safely.
+
+    Every balance mutation must pass for_update=True: two concurrent charges
+    doing read-modify-write can otherwise both pass the balance check and
+    double-spend — real money now that tokens are Stripe-purchased.
+    """
+    query = db.query(AccountCredit).filter(AccountCredit.account_id == account_id)
+    if for_update:
+        query = query.with_for_update()
+    row = query.first()
     if row:
         return row
-    row = AccountCredit(account_id=account_id, balance=0)
-    db.add(row)
-    db.flush()
-    return row
+    # First touch: ON CONFLICT survives a concurrent creator, then re-select
+    # (re-acquiring the lock when requested).
+    db.execute(
+        pg_insert(AccountCredit)
+        .values(account_id=account_id, balance=0)
+        .on_conflict_do_nothing(index_elements=["account_id"])
+    )
+    return query.first()
 
 
 def get_balance(db: Session, account_id: int) -> int:
@@ -81,7 +93,7 @@ def grant_tokens(
 ) -> int:
     if amount <= 0:
         return get_balance(db, account_id)
-    row = _ensure_credit_row(db, account_id)
+    row = _ensure_credit_row(db, account_id, for_update=True)
     row.balance += amount
     db.add(
         CreditTransaction(
@@ -108,7 +120,7 @@ def charge_tokens(
         return get_balance(db, account_id)
 
     llm_route = route(activity)
-    row = _ensure_credit_row(db, account_id)
+    row = _ensure_credit_row(db, account_id, for_update=True)
     if row.balance < llm_route.token_cost:
         raise HTTPException(
             402,

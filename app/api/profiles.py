@@ -46,11 +46,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
+def _ai_unavailable(db: Session, exc: Exception) -> HTTPException:
+    """LLM failure → honest 503; uncommitted charges roll back with it."""
+    logger.exception("AI provider failure: %s", exc)
+    db.rollback()
+    return HTTPException(
+        503,
+        detail={
+            "error": "ai_unavailable",
+            "message": (
+                "The AI provider is busy right now — nothing was charged. "
+                "Please try again in a minute."
+            ),
+        },
+    )
+
+
 def _owned_profile(db: Session, profile_id: int, account_id: int) -> Profile:
     profile = db.query(Profile).filter(Profile.id == profile_id).first()
     if not profile:
         raise HTTPException(404, "Profile not found")
-    if profile.account_id and profile.account_id != account_id:
+    # Strict ownership — a NULL account_id must not grant everyone access.
+    if profile.account_id != account_id:
         raise HTTPException(403, "Not your profile")
     return profile
 
@@ -257,9 +274,14 @@ async def profile_agent(
     est = agent_service.estimate_agent_cost(prompt, len(images), len(social_urls))
     credit_service.ensure_can_afford(db, account_id, est, activity="profile_agent")
 
-    result = await agent_service.run_agent_prompt(
-        db, profile, account_id, prompt.strip(), images, social_urls
-    )
+    try:
+        result = await agent_service.run_agent_prompt(
+            db, profile, account_id, prompt.strip(), images, social_urls
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _ai_unavailable(db, exc)
     for activity in result.get("charge_activities", []):
         credit_service.charge_tokens(
             db, account_id, activity, metadata={"profile_id": profile_id}
@@ -311,29 +333,34 @@ async def add_profile_note(
     account_id = get_account_id(request)
     profile = _owned_profile(db, profile_id, account_id)
     cost = 0
-    if rerank:
-        credit_service.charge_tokens(
-            db, account_id, "user_note", metadata={"profile_id": profile_id}
-        )
-        cost = route("user_note").token_cost
-    await evidence_service.add_note(
-        db, profile, account_id, note.strip(), tokens_charged=cost, analyze=rerank
-    )
-    if rerank:
-        user = onboarding_service.get_or_create_user(db, account_id=account_id)
-        pref = onboarding_service.get_user_preference(db, account_id=account_id)
-        if pref:
-            credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
-            await evidence_service.refresh_ranking(
-                db,
-                profile,
-                pref,
-                user_gender=user.gender,
-                user_intentions=user.intentions,
-                ui_context=user.ui_context,
-                user_profile=onboarding_service.user_profile_context(user),
-                trigger="Note added",
+    try:
+        if rerank:
+            credit_service.charge_tokens(
+                db, account_id, "user_note", metadata={"profile_id": profile_id}
             )
+            cost = route("user_note").token_cost
+        await evidence_service.add_note(
+            db, profile, account_id, note.strip(), tokens_charged=cost, analyze=rerank
+        )
+        if rerank:
+            user = onboarding_service.get_or_create_user(db, account_id=account_id)
+            pref = onboarding_service.get_user_preference(db, account_id=account_id)
+            if pref:
+                credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
+                await evidence_service.refresh_ranking(
+                    db,
+                    profile,
+                    pref,
+                    user_gender=user.gender,
+                    user_intentions=user.intentions,
+                    ui_context=user.ui_context,
+                    user_profile=onboarding_service.user_profile_context(user),
+                    trigger="Note added",
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _ai_unavailable(db, exc)
     db.commit()
     return {
         "status": "ok",
@@ -355,27 +382,32 @@ async def add_message_screenshot(
     image_bytes = await read_validated_image(file)
     if not image_bytes:
         raise HTTPException(400, "Empty file")
-    credit_service.charge_tokens(
-        db, account_id, "message_screenshot", metadata={"profile_id": profile_id}
-    )
-    cost = route("message_screenshot").token_cost
-    await evidence_service.add_message_screenshot(
-        db, profile, account_id, image_bytes, tokens_charged=cost
-    )
-    user = onboarding_service.get_or_create_user(db, account_id=account_id)
-    pref = onboarding_service.get_user_preference(db, account_id=account_id)
-    if pref:
-        credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
-        await evidence_service.refresh_ranking(
-            db,
-            profile,
-            pref,
-            user_gender=user.gender,
-            user_intentions=user.intentions,
-            ui_context=user.ui_context,
-            user_profile=onboarding_service.user_profile_context(user),
-            trigger="Chat evidence added",
+    try:
+        credit_service.charge_tokens(
+            db, account_id, "message_screenshot", metadata={"profile_id": profile_id}
         )
+        cost = route("message_screenshot").token_cost
+        await evidence_service.add_message_screenshot(
+            db, profile, account_id, image_bytes, tokens_charged=cost
+        )
+        user = onboarding_service.get_or_create_user(db, account_id=account_id)
+        pref = onboarding_service.get_user_preference(db, account_id=account_id)
+        if pref:
+            credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
+            await evidence_service.refresh_ranking(
+                db,
+                profile,
+                pref,
+                user_gender=user.gender,
+                user_intentions=user.intentions,
+                ui_context=user.ui_context,
+                user_profile=onboarding_service.user_profile_context(user),
+                trigger="Chat evidence added",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _ai_unavailable(db, exc)
     db.commit()
     return {
         "status": "ok",

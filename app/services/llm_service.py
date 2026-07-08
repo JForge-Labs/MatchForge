@@ -146,7 +146,17 @@ async def _responses_request(
                 continue
             resp.raise_for_status()
             body = resp.json()
-            return _extract_output_text(body), _parse_usage(body, model)
+            usage = _parse_usage(body, model)
+            # Central spend telemetry: internal token charges can be
+            # reconciled against real xAI usage from logs alone.
+            logger.info(
+                "llm_usage model=%s in=%d out=%d total=%d",
+                usage.model,
+                usage.input_tokens,
+                usage.output_tokens,
+                usage.total_tokens,
+            )
+            return _extract_output_text(body), usage
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             if attempt < _MAX_RETRIES:
                 delay = _retry_delay(None, attempt)
