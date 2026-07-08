@@ -348,6 +348,26 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; }
 
 .compare-card { min-width: 0; }
 
+.fit-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.6rem 0;
+}
+
+.starters-panel {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.starters-panel summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.starters-panel[open] summary { margin-bottom: 0.5rem; }
+.starters-list { margin: 0 0 0 1.2rem; display: grid; gap: 0.35rem; }
+
 .resend-form {
   display: flex;
   align-items: center;

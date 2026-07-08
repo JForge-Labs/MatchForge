@@ -234,6 +234,7 @@ def trust_card_context(profile, ranking, preference=None) -> dict:
         "rank_note": _rank_note(ranking),
         "history": _analysis_history(ranking),
         "forensics": _photo_forensics(trust),
+        "extras": (profile.extracted_data or {}).get("ranking_extras") or {},
         "auth": _first_not_none(ranking.authenticity_score, profile.authenticity_score),
         "natural": _first_not_none(ranking.naturalness_score, profile.naturalness_score),
         "bot": _first_not_none(ranking.bot_risk_score, profile.bot_risk_score),

@@ -146,6 +146,24 @@
   <p class="explanation">{{ ranking.explanation }}</p>
   {% endif %}
 
+  {% if t.extras.key_strengths or t.extras.key_concerns %}
+  <div class="fit-signals">
+    {% for s in t.extras.key_strengths %}<span class="badge badge-green">+ {{ s }}</span>{% endfor %}
+    {% for c in t.extras.key_concerns %}<span class="badge badge-yellow">− {{ c }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if t.extras.conversation_starters %}
+  <details class="starters-panel">
+    <summary>Conversation starters ({{ t.extras.conversation_starters|length }})</summary>
+    <ol class="starters-list">
+      {% for s in t.extras.conversation_starters %}
+      <li>{{ s }}</li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+
   <details class="score-math">
     <summary>How this score was computed</summary>
     <p class="score-math-line">

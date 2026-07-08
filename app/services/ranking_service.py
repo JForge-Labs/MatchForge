@@ -205,6 +205,17 @@ def compute_percolation_priority(ranking: Ranking) -> float:
 
 
 def apply_ranking_to_profile(profile: Profile, scores: dict) -> None:
+    # Persist the qualitative extras the model already produced — strengths,
+    # concerns, and openers are paid for on every analysis; don't drop them.
+    extras = {
+        "key_strengths": (scores.get("key_strengths") or [])[:3],
+        "key_concerns": (scores.get("key_concerns") or [])[:3],
+        "conversation_starters": (scores.get("conversation_starters") or [])[:3],
+    }
+    if any(extras.values()):
+        extracted = dict(profile.extracted_data or {})
+        extracted["ranking_extras"] = extras
+        profile.extracted_data = extracted
     profile.compatibility_score = scores.get("compatibility_score")
     profile.attractiveness_score = scores.get("attractiveness_score")
     profile.red_flag_score = scores.get("red_flag_score")
