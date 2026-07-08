@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
+alembic
 psycopg2-binary
 pgvector
 pydantic
@@ -11,6 +12,7 @@ python-dotenv
 python-multipart
 httpx
 pillow
+pillow-heif
 jinja2
 aiofiles
 itsdangerous

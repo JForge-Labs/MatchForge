@@ -7,6 +7,6 @@ if [[ "${RUN_DB_INIT:-true}" == "true" ]]; then
 fi
 
 echo "Applying database migrations..."
-python scripts/migrate.py || echo "WARNING: migrations failed — continuing with existing schema"
+python scripts/migrate.py
 
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
