@@ -87,10 +87,10 @@ app = FastAPI(
     description="Screenshot-first, privacy-first dating intelligence toolbox.",
     lifespan=lifespan,
     # The interactive API docs enumerate every endpoint of a billed product —
-    # keep them off the public internet.
-    docs_url=None if _is_prod else "/docs",
-    redoc_url=None if _is_prod else "/redoc",
-    openapi_url=None if _is_prod else "/openapi.json",
+    # keep them off the public internet (staging is public too).
+    docs_url="/docs" if settings.app_env == "development" else None,
+    redoc_url="/redoc" if settings.app_env == "development" else None,
+    openapi_url="/openapi.json" if settings.app_env == "development" else None,
 )
 
 
