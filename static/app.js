@@ -293,6 +293,90 @@ if (uploadForm && fileInput) {
   });
 }
 
+async function startRename(profileId) {
+  const h3 = document.getElementById(`card-title-${profileId}`);
+  if (!h3 || h3.dataset.editing) return;
+  h3.dataset.editing = "1";
+  const current = h3.textContent.trim();
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "rename-input";
+  input.value = current;
+  input.maxLength = 80;
+  h3.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const value = input.value.trim();
+    input.replaceWith(h3);
+    delete h3.dataset.editing;
+    if (!save || value === current) return;
+    try {
+      const resp = await fetch(`/profiles/${profileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ display_name: value }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(parseErrorDetail(data) || "Rename failed");
+      if (data.display_name) {
+        h3.textContent = data.display_name;
+        showToast("Profile renamed", "ok");
+      } else {
+        // cleared — card falls back to the extracted name
+        await refreshCard(profileId);
+        showToast("Name reset", "ok");
+      }
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      finish(true);
+    }
+    if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+async function saveNote(profileId, rerank) {
+  const input = document.getElementById(`note-input-${profileId}`);
+  const note = input?.value?.trim() || "";
+  if (!note) {
+    showToast("Write a note first", "error");
+    return;
+  }
+  const body = new FormData();
+  body.append("note", note);
+  body.append("rerank", rerank ? "true" : "false");
+  try {
+    const resp = await fetch(`/profiles/${profileId}/evidence/note`, {
+      method: "POST",
+      body,
+      credentials: "same-origin",
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const error = new Error(parseErrorDetail(data) || "Saving the note failed");
+      error.code = errorCodeOf(data);
+      throw error;
+    }
+    showToast(
+      rerank ? "Note saved — ranking refreshed" : "Note saved", "ok"
+    );
+    await refreshCard(profileId);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
 function showToast(msg, type = "ok") {
   let container = document.getElementById("toast-container");
   if (!container) {

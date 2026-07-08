@@ -321,6 +321,9 @@ async def _process_upload_job(
                         .first()
                     )
                     if ranking:
+                        ranking_service.snapshot_ranking(
+                            ranking, "New screenshot analyzed"
+                        )
                         ranking.overall_score = scores.get("overall_score", 0)
                         ranking.compatibility_score = scores.get(
                             "compatibility_score", 0

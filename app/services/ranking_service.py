@@ -1,6 +1,7 @@
 """AI ranking engine with customizable preference vectors."""
 import json
 import logging
+from datetime import datetime, timezone
 
 from app.core.config import get_settings
 from app.models.profile import PreferenceVector, Profile, Ranking
@@ -73,6 +74,28 @@ def compute_fit_score(scores: dict, weights: dict | None) -> float:
         + (100 - (red if red is not None else 50)) * w.get("red_flags", 0)
     ) / total
     return round(max(0.0, min(100.0, fit)), 1)
+
+
+def snapshot_ranking(ranking: Ranking, trigger: str) -> None:
+    """Record pre-recompute scores so users can see how evidence moved them.
+
+    Call BEFORE overwriting a ranking. Keeps the last 20 snapshots in
+    score_history; the analysis-history timeline renders these with deltas.
+    """
+    if ranking.overall_score is None:
+        return
+    entry = {
+        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "trigger": trigger,
+        "overall": ranking.overall_score,
+        "compatibility": ranking.compatibility_score,
+        "attractiveness": ranking.attractiveness_score,
+        "red_flags": ranking.red_flag_score,
+        "catfish": ranking.catfish_risk_score,
+    }
+    history = list(ranking.score_history or [])
+    history.append(entry)
+    ranking.score_history = history[-20:]
 
 
 def apply_feedback_percolation(ranking: Ranking) -> None:

@@ -65,6 +65,9 @@ class Profile(Base):
         ForeignKey("accounts.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str | None] = mapped_column(String(256))
+    # User-chosen label for the card; extracted `name` stays authoritative
+    # for dedup identity_key.
+    display_name: Mapped[str | None] = mapped_column(String(256))
     username: Mapped[str | None] = mapped_column(String(256))
     bio: Mapped[str | None] = mapped_column(Text)
     age: Mapped[int | None] = mapped_column(Integer)
@@ -123,6 +126,8 @@ class Ranking(Base):
     user_override_rank: Mapped[int | None] = mapped_column(Integer)
     percolation_priority: Mapped[float] = mapped_column(Float, default=0.0)
     feedback: Mapped[str | None] = mapped_column(String(32))
+    # Snapshots appended before every re-rank: {at, trigger, scores…}
+    score_history: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

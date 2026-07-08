@@ -42,12 +42,36 @@ DEFAULT_WEIGHTS = {
 }
 
 
+def _stamp_alembic_head() -> None:
+    """Fresh installs: create_all already built the head schema — record it."""
+    try:
+        from alembic import command
+        from alembic.config import Config
+
+        root = Path(__file__).resolve().parents[1]
+        cfg = Config(str(root / "alembic.ini"))
+        cfg.set_main_option("script_location", str(root / "alembic"))
+        command.stamp(cfg, "head")
+        print("Stamped Alembic head (fresh schema).")
+    except Exception as exc:  # never block init on stamping
+        print(f"Alembic stamp skipped: {exc}")
+
+
 def main() -> None:
+    from sqlalchemy import inspect
+
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
 
+    # Fresh DBs get the full head schema from the models; existing DBs are
+    # migrated by scripts/migrate.py (baseline stamp + upgrade).
+    fresh_install = "profiles" not in inspect(engine).get_table_names()
+
     Base.metadata.create_all(bind=engine)
+
+    if fresh_install:
+        _stamp_alembic_head()
 
     with engine.connect() as conn:
         conn.execute(

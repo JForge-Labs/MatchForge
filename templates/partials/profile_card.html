@@ -33,7 +33,9 @@
 
   <div class="card-header">
     <div class="card-title-block">
-      <h3>{{ ranking.profile.name or ranking.profile.username or ("Profile #" ~ ranking.profile.id) }}</h3>
+      <h3 class="card-title" id="card-title-{{ ranking.profile.id }}">{{ ranking.profile.display_name or ranking.profile.name or ranking.profile.username or ("Profile #" ~ ranking.profile.id) }}</h3>
+      <button type="button" class="btn-rename" title="Rename this profile (only changes your label)"
+              aria-label="Rename profile" onclick="startRename({{ ranking.profile.id }})">✎</button>
       {% if ranking.profile.username %}
       <span class="profile-handle">@{{ ranking.profile.username }}</span>
       {% endif %}
@@ -152,6 +154,46 @@
     {% endif %}
     <p class="score-math-line">Match score: <strong>{{ "%.0f"|format(ranking.overall_score) }}</strong></p>
     <a href="/how-scoring-works" class="score-math-link">Full methodology →</a>
+  </details>
+
+  {% if t.history %}
+  <details class="score-history">
+    <summary>Analysis history ({{ t.history|length }})</summary>
+    <ul class="history-list">
+      {% for h in t.history %}
+      <li>
+        <span class="history-date">{{ h.at or "now" }}</span>
+        <span class="history-trigger">{{ h.trigger }}</span>
+        {% if h.overall is not none %}
+        <span class="history-score">match {{ "%.0f"|format(h.overall) }}{% if h.delta is not none and h.delta != 0 %}
+          <span class="history-delta {{ 'up' if h.delta > 0 else 'down' }}">{{ "%+.0f"|format(h.delta) }}</span>{% endif %}</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% set notes = ranking.profile.evidence | selectattr("kind", "equalto", "note") | sort(attribute="created_at", reverse=true) | list %}
+  <details class="notes-panel">
+    <summary>Private notes{% if notes %} ({{ notes|length }}){% endif %}</summary>
+    {% if notes %}
+    <ul class="notes-list">
+      {% for ev in notes %}
+      <li>
+        <span class="note-date">{{ ev.created_at.strftime("%b %d") if ev.created_at else "" }}</span>
+        {{ ev.content_text }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <textarea id="note-input-{{ ranking.profile.id }}" class="note-input" rows="2"
+              placeholder="Add a private note — only you can see it."></textarea>
+    <div class="notes-actions">
+      <button type="button" class="btn small" onclick="saveNote({{ ranking.profile.id }}, false)">Save note · free</button>
+      <button type="button" class="btn small" onclick="saveNote({{ ranking.profile.id }}, true)"
+              title="Extract signals from the note and refresh this ranking">Save &amp; re-rank · ~{{ note_rerank_cost }} tokens</button>
+    </div>
   </details>
 
   {% if t.enrichments %}

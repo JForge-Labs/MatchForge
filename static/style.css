@@ -182,6 +182,94 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; }
   .toast, .card-new { animation: none; transition: none; }
 }
 
+.btn-rename {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.card:hover .btn-rename, .btn-rename:focus-visible { opacity: 1; }
+.btn-rename:hover { color: var(--accent); }
+
+.rename-input {
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.1rem 0.4rem;
+  max-width: 14rem;
+}
+
+.notes-panel, .score-history {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.notes-panel summary, .score-history summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.notes-panel[open] summary, .score-history[open] summary { margin-bottom: 0.5rem; }
+
+.notes-list { list-style: none; margin: 0 0 0.6rem; padding: 0; }
+
+.notes-list li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.notes-list li:last-child { border-bottom: none; }
+
+.note-date {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-right: 0.5rem;
+  white-space: nowrap;
+}
+
+.note-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+  margin-bottom: 0.5rem;
+}
+
+.notes-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.history-list { list-style: none; margin: 0; padding: 0; }
+
+.history-list li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+}
+
+.history-date { color: var(--muted); font-size: 0.75rem; min-width: 5.2rem; }
+.history-trigger { flex: 1; }
+.history-score { font-variant-numeric: tabular-nums; }
+.history-delta.up { color: var(--green); }
+.history-delta.down { color: var(--red); }
+
 .badge-na {
   border: 1px dashed var(--border);
   color: var(--muted);

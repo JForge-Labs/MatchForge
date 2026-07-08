@@ -42,9 +42,14 @@ class TrustScoresOut(BaseModel):
     risk_factors: list[str] = Field(default_factory=list)
 
 
+class RenameRequest(BaseModel):
+    display_name: str = ""
+
+
 class ProfileOut(BaseModel):
     id: int
     name: str | None = None
+    display_name: str | None = None
     username: str | None = None
     bio: str | None = None
     age: int | None = None

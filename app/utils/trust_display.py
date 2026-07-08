@@ -75,6 +75,43 @@ def _normalized_weights_pct(weights: dict | None) -> dict:
     }
 
 
+def _analysis_history(ranking) -> list[dict]:
+    """Score snapshots + current state as display rows, newest first.
+
+    Each row carries the match score at that time and its delta vs the prior
+    analysis — the receipts for "why did her score change?".
+    """
+    history = list(getattr(ranking, "score_history", None) or [])
+    if not history:
+        return []
+    entries = history + [
+        {
+            "at": None,
+            "trigger": "Current",
+            "overall": getattr(ranking, "overall_score", None),
+        }
+    ]
+    rows: list[dict] = []
+    prev: float | None = None
+    for entry in entries:
+        overall = entry.get("overall")
+        delta = None
+        if prev is not None and overall is not None:
+            delta = round(overall - prev, 1)
+        rows.append(
+            {
+                "at": (entry.get("at") or "")[:10],
+                "trigger": entry.get("trigger") or "Analysis",
+                "overall": overall,
+                "delta": delta,
+            }
+        )
+        if overall is not None:
+            prev = overall
+    rows.reverse()
+    return rows
+
+
 def _rank_note(ranking) -> str | None:
     """One honest sentence whenever list position differs from the match score."""
     feedback = getattr(ranking, "feedback", None)
@@ -165,6 +202,7 @@ def trust_card_context(profile, ranking, preference=None) -> dict:
         ),
         "weights_pct": _normalized_weights_pct(weights),
         "rank_note": _rank_note(ranking),
+        "history": _analysis_history(ranking),
         "auth": _first_not_none(ranking.authenticity_score, profile.authenticity_score),
         "natural": _first_not_none(ranking.naturalness_score, profile.naturalness_score),
         "bot": _first_not_none(ranking.bot_risk_score, profile.bot_risk_score),

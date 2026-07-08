@@ -19,7 +19,14 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.auth import get_account_id, require_auth
 from app.core.db import get_db
 from app.models.profile import Profile, ProfileEvidence, Ranking, SocialEnrichment
-from app.schemas.profile import EnrichRequest, EnrichResult, FeedbackRequest, ShareOut
+from app.schemas.profile import (
+    EnrichRequest,
+    EnrichResult,
+    FeedbackRequest,
+    ProfileOut,
+    RenameRequest,
+    ShareOut,
+)
 from app.services import (
     agent_service,
     credit_service,
@@ -104,6 +111,7 @@ async def _run_enrichment(profile_id: int, platforms: list[str]) -> None:
                     "bot_risk_score": profile.bot_risk_score,
                     "trust_explanation": trust_note,
                 }
+                ranking_service.snapshot_ranking(ranking, "Deep vet")
                 # Recompute fit from the stored sub-scores — feeding the
                 # already trust-adjusted overall_score back in would compound
                 # the penalty on every deep vet.
@@ -269,34 +277,63 @@ async def profile_agent(
     return result
 
 
+@router.patch("/{profile_id}")
+def rename_profile(
+    request: Request,
+    profile_id: int,
+    body: RenameRequest,
+    db: Session = Depends(get_db),
+):
+    """Set a user-chosen display name; extracted name keeps dedup identity."""
+    require_auth(request)
+    account_id = get_account_id(request)
+    profile = _owned_profile(db, profile_id, account_id)
+    name = (body.display_name or "").strip()[:80]
+    profile.display_name = name or None
+    db.commit()
+    return {
+        "status": "ok",
+        "profile_id": profile_id,
+        "display_name": profile.display_name,
+    }
+
+
 @router.post("/{profile_id}/evidence/note")
 async def add_profile_note(
     request: Request,
     profile_id: int,
     note: str = Form(...),
+    rerank: bool = Form(False),
     db: Session = Depends(get_db),
 ):
+    """Save a private note — free. Optional rerank charges and re-scores."""
     require_auth(request)
     account_id = get_account_id(request)
     profile = _owned_profile(db, profile_id, account_id)
-    credit_service.charge_tokens(db, account_id, "user_note", metadata={"profile_id": profile_id})
-    cost = route("user_note").token_cost
-    await evidence_service.add_note(
-        db, profile, account_id, note.strip(), tokens_charged=cost
-    )
-    user = onboarding_service.get_or_create_user(db, account_id=account_id)
-    pref = onboarding_service.get_user_preference(db, account_id=account_id)
-    if pref:
-        credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
-        await evidence_service.refresh_ranking(
-            db,
-            profile,
-            pref,
-            user_gender=user.gender,
-            user_intentions=user.intentions,
-            ui_context=user.ui_context,
-            user_profile=onboarding_service.user_profile_context(user),
+    cost = 0
+    if rerank:
+        credit_service.charge_tokens(
+            db, account_id, "user_note", metadata={"profile_id": profile_id}
         )
+        cost = route("user_note").token_cost
+    await evidence_service.add_note(
+        db, profile, account_id, note.strip(), tokens_charged=cost, analyze=rerank
+    )
+    if rerank:
+        user = onboarding_service.get_or_create_user(db, account_id=account_id)
+        pref = onboarding_service.get_user_preference(db, account_id=account_id)
+        if pref:
+            credit_service.charge_tokens(db, account_id, "rank_refresh", metadata={"profile_id": profile_id})
+            await evidence_service.refresh_ranking(
+                db,
+                profile,
+                pref,
+                user_gender=user.gender,
+                user_intentions=user.intentions,
+                ui_context=user.ui_context,
+                user_profile=onboarding_service.user_profile_context(user),
+                trigger="Note added",
+            )
     db.commit()
     return {
         "status": "ok",
@@ -337,6 +374,7 @@ async def add_message_screenshot(
             user_intentions=user.intentions,
             ui_context=user.ui_context,
             user_profile=onboarding_service.user_profile_context(user),
+            trigger="Chat evidence added",
         )
     db.commit()
     return {
@@ -387,7 +425,7 @@ def delete_profile(
     return {"status": "deleted", "profile_id": profile_id}
 
 
-@router.get("/{profile_id}")
+@router.get("/{profile_id}", response_model=ProfileOut)
 def get_profile(
     request: Request, profile_id: int, db: Session = Depends(get_db)
 ):

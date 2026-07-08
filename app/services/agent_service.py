@@ -434,6 +434,7 @@ async def run_agent_prompt(
             user_intentions=user.intentions,
             ui_context=user.ui_context,
             user_profile=onboarding_service.user_profile_context(user),
+            trigger="Agent run",
         )
         ranking = db.query(Ranking).filter(Ranking.profile_id == profile.id).first()
         if ranking and profile.trust_analysis:

@@ -56,6 +56,30 @@ def _username_from_profile_url(url: str | None, platform: str) -> str | None:
     return None
 
 
+def _is_name_only_key(key: str | None) -> bool:
+    return bool(key) and (":name:" in key or key.startswith("name:"))
+
+
+def _corroborates(profile: Profile, *, age, location) -> bool:
+    """Name-only identity needs age AND location agreement before merging.
+
+    Dating apps show first names only — two different 'Sarah's on Tinder must
+    never silently merge into one person.
+    """
+    if profile.age is None or age is None:
+        return False
+    try:
+        if abs(int(profile.age) - int(age)) > 1:
+            return False
+    except (TypeError, ValueError):
+        return False
+    loc_a = (profile.location or "").strip().lower()
+    loc_b = str(location or "").strip().lower()
+    if not loc_a or not loc_b:
+        return False
+    return loc_a == loc_b or loc_a in loc_b or loc_b in loc_a
+
+
 def find_existing_profile(
     db: Session, account_id: int, analysis: dict
 ) -> Profile | None:
@@ -82,8 +106,13 @@ def find_existing_profile(
             profile.name,
             (profile.extracted_data or {}).get("profile_url"),
         )
-        if existing and existing == key:
-            return profile
+        if not existing or existing != key:
+            continue
+        if _is_name_only_key(key) and not _corroborates(
+            profile, age=analysis.get("age"), location=analysis.get("location")
+        ):
+            continue
+        return profile
     return None
 
 
@@ -239,7 +268,15 @@ def merge_duplicate_profiles(db: Session, account_id: int | None = None) -> int:
         if len(group) < 2:
             continue
         keeper = max(group, key=lambda p: (len(p.photos or []), p.updated_at or p.created_at))
-        dupes = [p for p in group if p.id != keeper.id]
+        dupes = [
+            p
+            for p in group
+            if p.id != keeper.id
+            and (
+                not _is_name_only_key(key)
+                or _corroborates(p, age=keeper.age, location=keeper.location)
+            )
+        ]
         for dupe in dupes:
             for photo in dupe.photos or []:
                 if photo not in (keeper.photos or []):

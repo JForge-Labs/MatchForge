@@ -59,9 +59,8 @@ def _profile_snapshot(profile: Profile) -> str:
 
 
 def _merge_note_into_profile(profile: Profile, parsed: dict) -> None:
-    append = (parsed.get("suggested_bio_append") or "").strip()
-    if append:
-        profile.bio = f"{profile.bio or ''}\n\n[Note] {append}".strip()
+    # Never write user notes into the subject's bio: the bio renders as THEIR
+    # words on the card and feeds every future prompt as profile content.
     extracted = dict(profile.extracted_data or {})
     flags = extracted.get("user_notes") or []
     flags.append(parsed.get("summary"))
@@ -73,14 +72,13 @@ def _merge_note_into_profile(profile: Profile, parsed: dict) -> None:
 
 
 def _merge_message_into_profile(profile: Profile, parsed: dict) -> None:
+    # Chat summaries stay in message_evidence (prompts already consume it) —
+    # not in the subject's bio.
     extracted = dict(profile.extracted_data or {})
     msgs = extracted.get("message_evidence") or []
     msgs.append(parsed)
     extracted["message_evidence"] = msgs[-10:]
     profile.extracted_data = extracted
-    summary = parsed.get("summary")
-    if summary:
-        profile.bio = f"{profile.bio or ''}\n\n[Chat] {summary}".strip()
 
 
 async def add_note(
@@ -90,10 +88,26 @@ async def add_note(
     note: str,
     *,
     tokens_charged: int,
+    analyze: bool = True,
 ) -> ProfileEvidence:
-    prompt = NOTE_PROMPT.format(profile_json=_profile_snapshot(profile), note=note)
-    parsed, _usage = await llm_service.generate_json(prompt)
-    _merge_note_into_profile(profile, parsed)
+    """Store a private note; optionally run LLM signal extraction.
+
+    Plain saving (analyze=False) is free and makes no model calls — paying
+    tokens to jot a note is hostile for a premium product.
+    """
+    parsed: dict = {}
+    if analyze:
+        prompt = NOTE_PROMPT.format(
+            profile_json=_profile_snapshot(profile), note=note
+        )
+        parsed, _usage = await llm_service.generate_json(prompt)
+        _merge_note_into_profile(profile, parsed)
+    else:
+        extracted = dict(profile.extracted_data or {})
+        notes_list = extracted.get("user_notes") or []
+        notes_list.append(note)
+        extracted["user_notes"] = notes_list[-10:]
+        profile.extracted_data = extracted
     evidence = ProfileEvidence(
         profile_id=profile.id,
         account_id=account_id,
@@ -144,10 +158,12 @@ async def refresh_ranking(
     user_intentions: list[str] | None,
     ui_context: dict | None,
     user_profile: dict | None = None,
+    trigger: str = "Re-analysis",
 ) -> Ranking | None:
     ranking = db.query(Ranking).filter(Ranking.profile_id == profile.id).first()
     if not ranking:
         return None
+    ranking_service.snapshot_ranking(ranking, trigger)
     trust = profile.trust_analysis or {}
     scores = await ranking_service.rank_profile(
         profile,

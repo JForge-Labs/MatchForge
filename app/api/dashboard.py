@@ -35,9 +35,8 @@ def _shortlist_rankings(
     if account_id is not None:
         profile_filter.append(Profile.account_id == account_id)
 
-    if account_id is not None:
-        profile_merge_service.merge_duplicate_profiles(db, account_id)
-
+    # Dedup sweep runs at upload time (toolbox job) — never as a GET side
+    # effect: destructive merges on page load were both slow and unsafe.
     rankings = (
         db.query(Ranking)
         .join(Profile, Ranking.profile_id == Profile.id)
@@ -111,6 +110,9 @@ def profile_card_fragment(
                 route("profile_agent").token_cost + route("rank_refresh").token_cost
             ),
             "agent_image_cost": route("profile_agent_image").token_cost,
+            "note_rerank_cost": (
+                route("user_note").token_cost + route("rank_refresh").token_cost
+            ),
         },
         db=db,
     )
@@ -171,6 +173,9 @@ def dashboard_ui(request: Request, db: Session = Depends(get_db)):
             "x_verify_cost": route("x_verify").token_cost,
             "upload_cost": route("profile_screenshot").token_cost,
             "deep_vet_cost": route("deep_vet").token_cost,
+            "note_rerank_cost": (
+                route("user_note").token_cost + route("rank_refresh").token_cost
+            ),
             "authed": is_authenticated(request),
             "active": "dashboard",
         },
